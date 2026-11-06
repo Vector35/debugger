@@ -13,7 +13,7 @@ T = 6000
 bv = load(progs)
 d = DebuggerController(bv)
 d.adapter_type = 'PTRACE'
-d.cmd_line = 'bploop'
+d.cmd_line = os.environ.get('SWEEP_MODE', 'bploop')
 d.add_breakpoint(bv.get_symbols_by_name('marker')[0].address)
 steps = []
 

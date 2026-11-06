@@ -71,8 +71,18 @@ extern "C" void PtraceTestFailPwriteAfter(int writes)
 }
 
 // The next ptrace call of this request fails
+static std::atomic<int> g_failRequestLeft {0};
+
 extern "C" void PtraceTestFailNextRequest(int request)
 {
+	g_failRequestLeft = 1;
+	g_failRequest = request;
+}
+
+// The next `times` calls of this request fail
+extern "C" void PtraceTestFailRequestTimes(int request, int times)
+{
+	g_failRequestLeft = times;
 	g_failRequest = request;
 }
 
@@ -100,10 +110,14 @@ extern "C" long __wrap_ptrace(enum __ptrace_request request, ...)
 		errno = g_resumeErrno;
 		return -1;
 	}
-	if (g_failRequest.load() == (int)request && g_failRequest.exchange(-1) == (int)request)
+	if (g_failRequest.load() == (int)request)
 	{
-		errno = EIO;
-		return -1;
+		if (g_failRequestLeft.fetch_sub(1) > 0)
+		{
+			errno = EIO;
+			return -1;
+		}
+		g_failRequest = -1;
 	}
 	if (request == PTRACE_SETOPTIONS && g_failSetOptions.exchange(false))
 	{

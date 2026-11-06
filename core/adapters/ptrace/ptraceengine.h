@@ -383,6 +383,24 @@ namespace BinaryNinjaDebugger {
 		bool ResumeAll();
 		bool ApplyHardwareToThread(pid_t tid);
 		void HandleFork(pid_t child, bool sharedMemory);
+		// Takes the breakpoints out of a child that has its own copy of the memory (when `clean`) and lets it go. False if
+		// that did not work, and the child is still stopped and traced.
+		bool ReleaseChild(pid_t child, bool clean);
+		// The id of the task that a clone, fork or vfork event made. If the kernel will not say, it is found among the tasks
+		// that are stopped, traced by this thread, not known yet, and children of the target: when there is exactly one.
+		bool ReadNewTaskId(pid_t tid, unsigned long& id);
+		bool CleanForkChild(pid_t child);
+		// Children that could not be let go yet. They are frozen, and a parent that waits for one is stuck with them, so they
+		// are tried again, and ended, with an error that says so, if it takes too long.
+		struct StrandedChild
+		{
+			pid_t pid;
+			bool clean;
+			std::chrono::steady_clock::time_point giveUpAt;
+		};
+		std::vector<StrandedChild> m_strandedChildren;
+		std::chrono::steady_clock::time_point m_strandedNextTry {};
+		void RetryStrandedChildren();
 		ThreadStatusResult HandleExec(pid_t tid);
 		void ResumeBreakpointsAfterVfork();
 		bool RemoveAllBreakpoints();

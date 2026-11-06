@@ -19,6 +19,7 @@ extern "C" void PtraceTestFailNextMemOpen();
 extern "C" void PtraceTestHideWaitpid(pid_t tid);
 extern "C" void PtraceTestFailPwriteAfter(int writes);
 extern "C" void PtraceTestFailNextRequest(int request);
+extern "C" void PtraceTestFailRequestTimes(int request, int times);
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 #include <cstddef>
@@ -488,7 +489,7 @@ static bool RunToSignal(Log& log, PtraceEngine& engine, PtraceEngine::Event& eve
 		&& log.Wait(PtraceEngine::StoppedEvent, event) && event.signal == SIGUSR1;
 }
 
-static void EventMessageFailureIsSaid()
+static void EventMessageFailureIsRecovered()
 {
 	printf("[geteventmsg_failure]\n");
 	Log log;
@@ -497,14 +498,73 @@ static void EventMessageFailureIsSaid()
 		return;
 	PtraceEngine::Event event;
 	CHECK(RunToSignal(log, *engine, event));
-	// the fork happens, and the id of the child cannot be read
-	PtraceTestFailNextRequest(PTRACE_GETEVENTMSG);
+	// The id of the child cannot be read, not once and not again. The child is found among the stopped tasks of the target,
+	// and let go of, instead of staying frozen with its parent waiting for it.
+	PtraceTestFailRequestTimes(PTRACE_GETEVENTMSG, 1000);
 	CHECK(engine->Resume(false, 0));
-	std::this_thread::sleep_for(300ms);
-	CHECK(engine->Interrupt());
-	CHECK(log.Wait(PtraceEngine::StoppedEvent, event, 5s));
-	CHECK(HasError(event, "could not be read"));
-	CHECK(engine->Kill());
+	CHECK(log.Wait(PtraceEngine::ExitedEvent, event, 8s));
+	PtraceTestFailRequestTimes(PTRACE_GETEVENTMSG, 0);
+	CHECK(event.exitCode == 0);
+}
+
+// A child of the target is stopped and traced from the start. If it cannot be let go, it stays frozen, and the parent, which
+// is usually waiting for it, never runs again.
+static void ForkChildDetachIsRetried()
+{
+	printf("[fork_child_detach_retried]\n");
+	Log log;
+	auto engine = Start(log, "forkbp");
+	if (!engine)
+		return;
+	PtraceEngine::Event event;
+	CHECK(RunToSignal(log, *engine, event));
+	// one refusal is not the end: the child is let go on the next try, and the target finishes
+	PtraceTestFailNextRequest(PTRACE_DETACH);
+	CHECK(engine->Resume(false, 0));
+	CHECK(log.Wait(PtraceEngine::ExitedEvent, event, 8s));
+	CHECK(event.exitCode == 0);
+}
+
+// Taking the breakpoints out of the child is a write. If it fails and the child is let go anyway, the first thing the child does
+// is run into a breakpoint of the debugger, and it dies of SIGTRAP with nobody the wiser.
+static void ForkChildCleaningIsRetried()
+{
+	printf("[fork_child_clean_retried]\n");
+	Log log;
+	auto engine = Start(log, "forkbp");
+	if (!engine)
+		return;
+	PtraceEngine::Event event;
+	CHECK(RunToSignal(log, *engine, event));
+	uint64_t marker = AddressFromOutput(log, "marker=");
+	CHECK(marker != 0);
+	CHECK(engine->AddBreakpoint(marker));
+	PtraceTestFailNextPwrite();
+	CHECK(engine->Resume(false, 0));
+	CHECK(log.Wait(PtraceEngine::ExitedEvent, event, 8s));
+	// forkbp reports 100 plus the signal if the child was killed by one
+	CHECK(event.exitCode == 0);
+}
+
+static void ForkChildThatCannotBeLetGoIsEnded()
+{
+	printf("[fork_child_detach_gives_up]\n");
+	Log log;
+	auto engine = Start(log, "forkbp");
+	if (!engine)
+		return;
+	PtraceEngine::Event event;
+	CHECK(RunToSignal(log, *engine, event));
+	// when it cannot be let go for good, it is ended and said so, rather than left frozen with its parent waiting for it
+	PtraceTestFailRequestTimes(PTRACE_DETACH, 100000);
+	CHECK(engine->Resume(false, 0));
+	bool exited = log.Wait(PtraceEngine::ExitedEvent, event, 12s);
+	PtraceTestFailRequestTimes(PTRACE_DETACH, 0);
+	CHECK(exited);
+	if (!exited)
+		CHECK(engine->Kill());
+	else
+		CHECK(HasError(event, "could not be let go"));
 }
 
 static void FailedRestoreIsSaid()
@@ -641,11 +701,11 @@ static void PcRewindFailureIsSaid()
 int main(int argc, char** argv)
 {
 	struct { const char* name; void (*run)(); } tests[] = {
-		{"resume_failure_state", ResumeFailureKeepsThreadStopped}, {"resume_esrch_of_stopped_thread", ResumeRefusedWithEsrchOfStoppedThread}, {"breakpoint_cleanup_failure", FailedRestorePreventsDetach},
+		{"resume_failure_state", ResumeFailureKeepsThreadStopped}, {"fork_child_detach_retried", ForkChildDetachIsRetried}, {"fork_child_clean_retried", ForkChildCleaningIsRetried}, {"fork_child_detach_gives_up", ForkChildThatCannotBeLetGoIsEnded}, {"resume_esrch_of_stopped_thread", ResumeRefusedWithEsrchOfStoppedThread}, {"breakpoint_cleanup_failure", FailedRestorePreventsDetach},
 		{"setoptions_failure", SetOptionsFailureRejectsLaunch}, {"memory_open_failure", MemoryOpenFailureRejectsLaunch},
 		{"stopall_timeout", StopAllGivesUp}, {"kill_timeout", KillGivesUp}, {"detach_timeout", DetachGivesUp},
 		{"launch_timeout", LaunchGivesUp}, {"attach_timeout", AttachGivesUp},
-		{"geteventmsg_failure", EventMessageFailureIsSaid}, {"breakpoint_restore_failure", FailedRestoreIsSaid},
+		{"geteventmsg_failure", EventMessageFailureIsRecovered}, {"breakpoint_restore_failure", FailedRestoreIsSaid},
 		{"breakpoint_restore_detach_failure", FailedSuspendedRestorePreventsDetach},
 		{"hw_apply_failure", HardwareFailureOnNewThreadIsSaid}, {"pc_rewind_failure", PcRewindFailureIsSaid}};
 	if (argc > 2)

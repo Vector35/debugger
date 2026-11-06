@@ -26,6 +26,7 @@
 //                    else; the failure is described on stderr as "FAULT#N ..."
 static uint64_t g_seed = 1;
 static long g_nth = 0;
+static int g_onlyRequest = -1;  // FAULT_REQUEST=N: FAULT_NTH counts only ptrace calls with this request
 static int g_waitKind = 0;  // FAULT_KIND=waitpid: FAULT_NTH counts and fails waitpid/wait4 (EINTR) instead
 static atomic_long g_count = 0;
 #include <stdio.h>
@@ -51,6 +52,8 @@ __attribute__((constructor)) static void init(void)
 	if (s) g_permille = atoi(s);
 	s = getenv("FAULT_NTH");
 	if (s) g_nth = atol(s);
+	s = getenv("FAULT_REQUEST");
+	if (s) g_onlyRequest = atoi(s);
 	s = getenv("FAULT_KIND");
 	if (s && !strcmp(s, "waitpid")) g_waitKind = 1;
 	s = getenv("FAULT_AFTER_MS");
@@ -159,7 +162,7 @@ long ptrace(enum __ptrace_request request, ...)
 	void* address = va_arg(args, void*);
 	void* data = va_arg(args, void*);
 	va_end(args);
-	int injectNth = g_nth > 0 && (int)request != PTRACE_TRACEME && nthCall();
+	int injectNth = g_nth > 0 && (int)request != PTRACE_TRACEME && (g_onlyRequest < 0 || (int)request == g_onlyRequest) && nthCall();
 	if (injectNth)
 	{
 		fprintf(stderr, "FAULT#%ld ptrace request=%d tid=%d\n", g_nth, (int)request, (int)pid);

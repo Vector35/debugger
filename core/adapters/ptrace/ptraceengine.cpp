@@ -1376,6 +1376,8 @@ namespace BinaryNinjaDebugger {
 			// signal, a core dump) the leader cannot be reaped before them, and only this finds that out.
 			if (!m_done && (GroupMayBeDying() || !m_running || idle >= 20))
 				PollThreadsForDeath();
+			if (!m_done && !m_strandedChildren.empty())
+				RetryStrandedChildren();
 		}
 
 		std::lock_guard<std::mutex> lock(m_taskMutex);
@@ -1671,7 +1673,7 @@ namespace BinaryNinjaDebugger {
 		if (event == PTRACE_EVENT_CLONE)
 		{
 			unsigned long newTid = 0;
-			if (ptrace(PTRACE_GETEVENTMSG, tid, nullptr, &newTid) != 0 || newTid == 0)
+			if (!ReadNewTaskId(tid, newTid))
 			{
 				QueueError("thread " + std::to_string(tid) + " made a new task, and its id could not be read, so the new task is "
 					  "not managed and stays stopped");
@@ -1696,7 +1698,7 @@ namespace BinaryNinjaDebugger {
 		if (event == PTRACE_EVENT_FORK || event == PTRACE_EVENT_VFORK)
 		{
 			unsigned long child = 0;
-			if (ptrace(PTRACE_GETEVENTMSG, tid, nullptr, &child) != 0 || child == 0)
+			if (!ReadNewTaskId(tid, child))
 			{
 				QueueError("thread " + std::to_string(tid) + " made a child process, and its id could not be read, so the child is "
 					  "not let go of and stays stopped");
@@ -2019,6 +2021,73 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::ReadNewTaskId(pid_t tid, unsigned long& id)
+	{
+		for (int attempt = 0; attempt < 3; attempt++)
+		{
+			id = 0;
+			if (ptrace(PTRACE_GETEVENTMSG, tid, nullptr, &id) == 0 && id != 0)
+				return true;
+		}
+
+		// Without the id the new task would stay stopped for good, and a parent that waits for it would too. It can be told
+		// from the rest, though: it is stopped and traced by this very thread, nobody has asked about it yet, and it is a
+		// thread of the target or a child of the target.
+		struct Info
+		{
+			char state = 0;
+			pid_t parent = 0;
+			pid_t tracer = 0;
+		};
+		auto read = [](const std::string& path) {
+			Info info;
+			std::ifstream status(path);
+			std::string line;
+			while (std::getline(status, line))
+			{
+				if (line.rfind("State:", 0) == 0 && line.size() > 7)
+					info.state = line[line.find_first_not_of(" \t", 6)];
+				else if (line.rfind("PPid:", 0) == 0)
+					info.parent = atoi(line.c_str() + 5);
+				else if (line.rfind("TracerPid:", 0) == 0)
+					info.tracer = atoi(line.c_str() + 10);
+			}
+			return info;
+		};
+		pid_t me = (pid_t)syscall(SYS_gettid);
+		auto isTheNewTask = [&](pid_t task, const std::string& path) {
+			if (m_threads.count(task))
+				return false;
+			Info info = read(path);
+			return info.tracer == me && (info.state == 't' || info.state == 'T');
+		};
+
+		std::vector<pid_t> found;
+		std::error_code error;
+		for (const auto& entry : std::filesystem::directory_iterator("/proc/" + std::to_string(m_pid) + "/task", error))
+		{
+			pid_t task = atoi(entry.path().filename().c_str());
+			if (task > 0 && isTheNewTask(task, entry.path().string() + "/status"))
+				found.push_back(task);
+		}
+		for (const auto& entry : std::filesystem::directory_iterator("/proc", error))
+		{
+			pid_t process = atoi(entry.path().filename().c_str());
+			if (process <= 0 || process == m_pid || std::find(found.begin(), found.end(), process) != found.end())
+				continue;
+			if (read(entry.path().string() + "/status").parent == m_pid && isTheNewTask(process, entry.path().string() + "/status"))
+				found.push_back(process);
+		}
+		if (found.size() != 1)
+			return false;
+		id = (unsigned long)found[0];
+		QueueNote(fmt::format("the kernel would not say which task thread {} made, so it was taken to be {}, the only "
+							  "stopped task of the target that was not known",
+			tid, found[0]));
+		return true;
+	}
+
+
 	// A child of the target starts out as a copy of it, breakpoints included, and it is not ours to debug. So the
 	// breakpoints come out of it, and it is let go.
 	void PtraceEngine::HandleFork(pid_t child, bool sharedMemory)
@@ -2035,67 +2104,132 @@ namespace BinaryNinjaDebugger {
 		if (waited == WaitResult::Gone || !WIFSTOPPED(status))
 			return;
 
+		if (sharedMemory)
 		{
 			std::lock_guard<std::mutex> lock(m_breakpointMutex);
-			if (sharedMemory)
+			// There is only one memory, so the breakpoints are out of the target for as long as the child uses it
+			for (auto& [address, breakpoint] : m_breakpoints)
 			{
-				// There is only one memory, so the breakpoints are out of the target for as long as the child uses it
-				for (auto& [address, breakpoint] : m_breakpoints)
+				if (!breakpoint.inserted)
+					continue;
+
+				// A breakpoint that could not be taken out is still in the memory, and has to be known as such
+				if (!RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size()))
 				{
-					if (!breakpoint.inserted)
-						continue;
-
-					RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size());
-					breakpoint.inserted = false;
-					breakpoint.suspended = true;
+					QueueError(fmt::format("the breakpoint at 0x{:x} could not be taken out of the memory that the child "
+										   "of vfork shares, so the child can run into it",
+						address));
+					continue;
 				}
-				m_vforkPending++;
+				breakpoint.inserted = false;
+				breakpoint.suspended = true;
 			}
-			else
-			{
-				int fd = open(("/proc/" + std::to_string(child) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
-				if (fd >= 0)
-				{
-					for (const auto& [address, breakpoint] : m_breakpoints)
-					{
-						{
-							if (!breakpoint.inserted)
-								continue;
-
-							// Best effort: a child that cannot be written to is simply let go
-							[[maybe_unused]] auto written =
-								pwrite(fd, breakpoint.original.data(), breakpoint.original.size(), address);
-						}
-					}
-					close(fd);
-
-					// A clone with CLONE_VM that is not a thread shares the memory of the target, and is not told by a
-					// vfork event when it is done with it. What was written to the child is then what is in the target now,
-					// and the breakpoints are put back.
-					for (const auto& [address, breakpoint] : m_breakpoints)
-					{
-						if (!breakpoint.inserted)
-							continue;
-
-						std::vector<uint8_t> now(breakpoint.original.size());
-						if (RawReadMemory(address, now.data(), now.size()) && now == breakpoint.original)
-						{
-							for (auto& [otherAddress, other] : m_breakpoints)
-							{
-								if (other.inserted)
-									RawWriteMemory(otherAddress, m_arch->breakpointInstruction.data(),
-										m_arch->breakpointInstruction.size());
-							}
-							QueueNote("a process made with clone shares the memory of the target, so it can run into the "
-								 "breakpoints, which stay where they are");
-						}
-						break;
-					}
-				}
-			}
+			m_vforkPending++;
 		}
 
-		ptrace(PTRACE_DETACH, child, nullptr, nullptr);
+		if (ReleaseChild(child, !sharedMemory))
+			return;
+
+		// It is frozen. Its parent is probably waiting for it, so this has to be fixed or ended soon
+		m_strandedChildren.push_back(
+			{child, !sharedMemory, std::chrono::steady_clock::now() + std::chrono::seconds(2)});
+	}
+
+
+	// A child that has its own copy of the memory has the breakpoints in it, and without them it is let go as it was
+	bool PtraceEngine::CleanForkChild(pid_t child)
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		int fd = open(("/proc/" + std::to_string(child) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
+		if (fd < 0)
+			return errno == ENOENT;  // gone, so there is nothing to clean
+
+		bool clean = true;
+		for (const auto& [address, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+			auto written = pwrite(fd, breakpoint.original.data(), breakpoint.original.size(), address);
+			clean &= written == (ssize_t)breakpoint.original.size();
+		}
+		close(fd);
+		if (!clean)
+			return false;
+
+		// A clone with CLONE_VM that is not a thread shares the memory of the target, and is not told by a
+		// vfork event when it is done with it. What was written to the child is then what is in the target now,
+		// and the breakpoints are put back.
+		for (const auto& [address, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+
+			std::vector<uint8_t> now(breakpoint.original.size());
+			if (RawReadMemory(address, now.data(), now.size()) && now == breakpoint.original)
+			{
+				for (auto& [otherAddress, other] : m_breakpoints)
+				{
+					if (other.inserted)
+						RawWriteMemory(otherAddress, m_arch->breakpointInstruction.data(),
+							m_arch->breakpointInstruction.size());
+				}
+				QueueNote("a process made with clone shares the memory of the target, so it can run into the "
+						  "breakpoints, which stay where they are");
+			}
+			break;
+		}
+		return true;
+	}
+
+
+	bool PtraceEngine::ReleaseChild(pid_t child, bool clean)
+	{
+		if (clean && !CleanForkChild(child))
+			return false;
+		if (ptrace(PTRACE_DETACH, child, nullptr, nullptr) == 0)
+			return true;
+		// ESRCH from a child that is gone is a release. From one that is still there and stopped it is not.
+		if (errno != ESRCH)
+			return false;
+		std::ifstream stat("/proc/" + std::to_string(child) + "/stat");
+		std::string line;
+		if (!std::getline(stat, line))
+			return true;
+		auto close = line.rfind(')');
+		char state = close != std::string::npos && close + 2 < line.size() ? line[close + 2] : 0;
+		return state != 't' && state != 'T';
+	}
+
+
+	void PtraceEngine::RetryStrandedChildren()
+	{
+		auto now = std::chrono::steady_clock::now();
+		// The tracer loop comes by very often while the target runs
+		if (now < m_strandedNextTry)
+			return;
+		m_strandedNextTry = now + std::chrono::milliseconds(20);
+		for (auto it = m_strandedChildren.begin(); it != m_strandedChildren.end();)
+		{
+			if (ReleaseChild(it->pid, it->clean))
+			{
+				it = m_strandedChildren.erase(it);
+				continue;
+			}
+			if (now < it->giveUpAt)
+			{
+				++it;
+				continue;
+			}
+
+			// Frozen for good, and whoever waits for it would wait for good too
+			QueueError(fmt::format("process {}, a child of the target, could not be let go of{}, and was ended so that its "
+								   "parent does not wait for it for ever",
+				it->pid, it->clean ? " (or cleaned of the breakpoints of the debugger)" : ""));
+			kill(it->pid, SIGKILL);
+			int status = 0;
+			WaitForThread(it->pid, status, std::chrono::milliseconds(200));
+			it = m_strandedChildren.erase(it);
+		}
 	}
 
 
