@@ -5,8 +5,21 @@ relaunch that was refused, or a target that survived quit.
 usage: sweep_session.py <progs>   (env: FAULT_NTH, LD_PRELOAD=faultshim.so, as for session.py)
 """
 import json, os, sys, time
+import ctypes
 from binaryninja import load
 from debugger import DebuggerController, DebugStopReason
+
+
+def _exit(code):
+    """os._exit, after writing the coverage counters of the plugin if it was built with coverage (FUZZ_COV_LIB=<.so>)"""
+    lib = os.environ.get('FUZZ_COV_LIB')
+    if lib:
+        try:
+            ctypes.CDLL(lib).__gcov_dump()
+        except Exception:
+            pass
+    os._exit(code)
+
 
 progs = sys.argv[1]
 T = 6000
@@ -64,4 +77,4 @@ leak += children()
 timed_out = [n for n, r in steps if r == 'TimedOut' and n not in ('quit', 'quit2')]
 refused = [n for n, r in steps if n == 'relaunch' and r in ('InvalidStatusOrOperation', 'TimedOut')]
 print(json.dumps({'steps': steps, 'leak': bool(leak), 'wedged': bool(timed_out or refused or leak)}), flush=True)
-os._exit(0)
+_exit(0)

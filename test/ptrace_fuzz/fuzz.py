@@ -40,7 +40,8 @@ def run(seed, mode, pause, flags):
                 f.write(' '.join(cmd) + '\n' + pr.stdout + '\n--- stderr ---\n' + pr.stderr)
         return cmd, pr.returncode, pr.stdout[-6000:], pr.stderr[-2000:]
     except subprocess.TimeoutExpired as e:
-        return cmd, 'TIMEOUT', (e.stdout or b'')[-3000:], ''
+        out = e.stdout or ''
+        return cmd, 'TIMEOUT', (out.decode(errors='replace') if isinstance(out, bytes) else out)[-3000:], ''
 
 
 n = bad = 0

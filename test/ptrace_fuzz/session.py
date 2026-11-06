@@ -6,9 +6,22 @@ exits 3 on a finding. A native crash shows up as a signal exit in the parent.
 """
 import os, random, sys, threading, time, faulthandler, traceback, signal, subprocess, ctypes
 
+import ctypes
 import binaryninja
 from binaryninja import load
 from debugger import DebuggerController, DebugStopReason, ModuleNameAndOffset
+
+
+def _exit(code):
+    """os._exit, after writing the coverage counters of the plugin if it was built with coverage (FUZZ_COV_LIB=<.so>)"""
+    lib = os.environ.get('FUZZ_COV_LIB')
+    if lib:
+        try:
+            ctypes.CDLL(lib).__gcov_dump()
+        except Exception:
+            pass
+    os._exit(code)
+
 
 SCALE = float(os.environ.get('FUZZ_TIME_SCALE', '1'))
 TIMEOUT_MS = int(8000 * SCALE)
@@ -82,13 +95,13 @@ def watchdog():
                 print(f'FINDING: HANG in hammer thread {name}', flush=True)
                 print('OPS:', log, flush=True)
                 faulthandler.dump_traceback(all_threads=True)
-                os._exit(4)
+                _exit(4)
         d = hang_deadline[0]
         if d and time.time() > d:
             print('FINDING: HANG in op: %s' % (log[-1] if log else '?'), flush=True)
             print('OPS:', log, flush=True)
             faulthandler.dump_traceback(all_threads=True)
-            os._exit(4)
+            _exit(4)
 
 
 threading.Thread(target=watchdog, daemon=True).start()
@@ -560,5 +573,5 @@ except BaseException as e:
 
 if findings:
     print('OPS:', log, flush=True)
-    os._exit(3)
-os._exit(0)
+    _exit(3)
+_exit(0)

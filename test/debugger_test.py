@@ -811,6 +811,37 @@ class PtraceAdapterTests:
     def test_exit_group_by_stepped_thread(self):
         self._step_until_exit_after_marker('exitthread')
 
+    def test_remove_module_relative_breakpoint(self):
+        # Breakpoints added by module and offset were never removed through the adapter by the tests: the byte has to be
+        # restored in the target, and the target must run through the place without stopping.
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'bploop'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.SignalUsr1)
+            pid = dbg.active_pid
+            marker = bv.get_symbols_by_name('marker')[0].address
+            module = next(m for m in dbg.modules if os.path.realpath(m.name) == os.path.realpath(dbg.executable_path))
+            location = ModuleNameAndOffset(module.short_name, marker - module.address)
+
+            def raw_byte():
+                with open(f'/proc/{pid}/mem', 'rb', buffering=0) as memory:
+                    memory.seek(marker)
+                    return memory.read(1)
+            original = raw_byte()
+            dbg.add_breakpoint(location)
+            self.assertEqual(raw_byte(), b'\xcc')
+            self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.Breakpoint)
+            self.assertEqual(dbg.ip, marker)
+            dbg.delete_breakpoint(location)
+            self.assertEqual(raw_byte(), original, 'the breakpoint byte is still in the target')
+            self.assertEqual(dbg.go_and_wait(timeout=1500), DebugStopReason.TimedOut, 'the target still stops at the removed breakpoint')
+            dbg.pause_and_wait(10000)
+            self.assertEqual(raw_byte(), original)
+        finally:
+            dbg.quit_and_wait(10000)
+
     def test_single_step_through_system_calls(self):
         # x86 reports the step that ends after a syscall instruction with TRAP_BRKPT. That is still the step, and not a
         # SIGTRAP of the target: delivering one on the next resume would kill the target.

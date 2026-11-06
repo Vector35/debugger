@@ -24,76 +24,12 @@ limitations under the License.
 #include <optional>
 #include <sstream>
 #include "ptraceadapter.h"
+#include "ptracecmdline.h"
 #include "ptracesignal.h"
 #include "lowlevelilinstruction.h"
 #include "../../debuggercontroller.h"
 
 namespace BinaryNinjaDebugger {
-
-	static std::optional<std::vector<std::string>> ParseCommandLineArguments(const std::string& commandLine)
-	{
-		enum class Quote
-		{
-			None,
-			Single,
-			Double
-		};
-		Quote quote = Quote::None;
-		bool escaped = false;
-		bool argumentStarted = false;
-		std::string argument;
-		std::vector<std::string> arguments;
-
-		for (char ch : commandLine)
-		{
-			if (escaped)
-			{
-				argument += ch;
-				argumentStarted = true;
-				escaped = false;
-				continue;
-			}
-
-			if (ch == '\\' && quote != Quote::Single)
-			{
-				escaped = true;
-				argumentStarted = true;
-				continue;
-			}
-			if (ch == '\'' && quote != Quote::Double)
-			{
-				quote = quote == Quote::Single ? Quote::None : Quote::Single;
-				argumentStarted = true;
-				continue;
-			}
-			if (ch == '"' && quote != Quote::Single)
-			{
-				quote = quote == Quote::Double ? Quote::None : Quote::Double;
-				argumentStarted = true;
-				continue;
-			}
-			if (std::isspace(static_cast<unsigned char>(ch)) && quote == Quote::None)
-			{
-				if (argumentStarted)
-				{
-					arguments.push_back(argument);
-					argument.clear();
-					argumentStarted = false;
-				}
-				continue;
-			}
-
-			argument += ch;
-			argumentStarted = true;
-		}
-
-		if (escaped || quote != Quote::None)
-			return std::nullopt;
-		if (argumentStarted)
-			arguments.push_back(argument);
-		return arguments;
-	}
-
 
 	static DebugRegister RegisterFromBytes(const PtraceRegister& reg, const std::vector<uint8_t>& data, size_t index)
 	{
