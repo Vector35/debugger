@@ -740,6 +740,77 @@ class PtraceAdapterTests:
         self.assertTrue(os.path.isfile(fixture), fixture)
         return fixture
 
+    def _step_until_exit_after_marker(self, mode, expected_code=9):
+        # The target ends the whole process with exit_group while the debugger single-steps the thread that does it and
+        # holds the other threads stopped. The leader can only be reaped after its siblings, which the engine does not
+        # poll while it believes the target is running, so the exit used to go unreported.
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = mode
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        marker = bv.get_symbols_by_name('marker')[0].address
+        dbg.add_breakpoint(marker)
+        self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.Breakpoint)
+        self.assertEqual(dbg.ip, marker)
+        self.assertGreaterEqual(len(list(dbg.threads)), 2)
+        for _ in range(2000):
+            reason = dbg.step_into_and_wait(timeout=20000)
+            if reason == DebugStopReason.ProcessExited:
+                break
+            self.assertIn(reason, [DebugStopReason.SingleStep, DebugStopReason.Breakpoint], f'unexpected stop {reason}')
+        else:
+            self.fail('the exit of the target was not reported')
+        self.assertEqual(dbg.exit_code, expected_code)
+
+    def test_relaunch_after_a_target_that_exits_at_once(self):
+        # The adapter announces a resume after it has asked the engine to resume. A target that exits at once can have its
+        # exit processed first, and the late announcement used to make the controller believe it was connected and
+        # running again, so that every later launch was refused. Busy processes make that interleaving likely.
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'hello'
+        hogs = [subprocess.Popen(['yes'], stdout=subprocess.DEVNULL) for _ in range(2 * (os.cpu_count() or 4))]
+        try:
+            for i in range(250):
+                reason = dbg.launch_and_wait(20000)
+                self.assertNotIn(reason, [DebugStopReason.InvalidStatusOrOperation, DebugStopReason.TimedOut],
+                                 f'launch {i} was refused')
+                self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.ProcessExited)
+                self.assertFalse(dbg.connected, f'the controller is still connected after the exit in cycle {i}')
+        finally:
+            for hog in hogs:
+                hog.kill()
+                hog.wait()
+
+    def test_pause_after_the_target_exited(self):
+        # A pause that finds the target already gone has not stopped anything. It must not claim a user break.
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        for _ in range(5):
+            dbg.cmd_line = 'exitleader'
+            self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            pid = dbg.active_pid
+            self.assertTrue(dbg.go())
+
+            def gone():
+                try:
+                    return all(open(f'/proc/{pid}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0] in 'ZX'
+                       for t in os.listdir(f'/proc/{pid}/task'))
+                except OSError:
+                    return True
+            deadline = time.time() + 20
+            while not gone() and time.time() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(gone(), 'the target did not exit')
+            self.assertIn(dbg.pause_and_wait(10000), [DebugStopReason.ProcessExited, DebugStopReason.InvalidStatusOrOperation])
+            dbg.quit_and_wait(10000)
+
+    def test_exit_group_by_stepped_leader(self):
+        self._step_until_exit_after_marker('exitleader')
+
+    def test_exit_group_by_stepped_thread(self):
+        self._step_until_exit_after_marker('exitthread')
+
     def test_single_step_through_system_calls(self):
         # x86 reports the step that ends after a syscall instruction with TRAP_BRKPT. That is still the step, and not a
         # SIGTRAP of the target: delivering one on the next resume would kill the target.

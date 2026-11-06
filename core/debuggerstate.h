@@ -40,7 +40,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::unordered_map<std::string, DebugRegister> m_registerCache;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_registersMutex;
 		std::unordered_map<std::string, DebugRegister> GetCachedRegisters();
 
@@ -61,7 +61,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::vector<DebugModule> m_modules;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_modulesMutex;
 
 	public:
@@ -85,7 +85,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::vector<DebugMemoryRegion> m_regions;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_regionsMutex;
 
 	public:
@@ -183,7 +183,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerState* m_state;
 		std::vector<DebugThread> m_threads;
 		std::map<uint32_t, std::vector<DebugFrame>> m_frames;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_threadsMutex;
 
 	public:
@@ -266,7 +266,8 @@ namespace BinaryNinjaDebugger {
 		DebuggerController* m_controller;
 		// Read by API threads while the event thread changes it
 		std::atomic<DebugAdapterConnectionStatus> m_connectionStatus;
-		DebugAdapterTargetStatus m_targetStatus;
+		// Read by API threads while the event thread changes it
+		std::atomic<DebugAdapterTargetStatus> m_targetStatus;
 
 		DebugAdapter* m_adapter;
 		DebuggerModules* m_modules;

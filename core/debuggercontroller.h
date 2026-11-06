@@ -137,12 +137,12 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_callbackMutex;
 		std::set<size_t> m_disabledCallbacks;
 
-		uint64_t m_lastIP = 0;
-		uint64_t m_currentIP = 0;
+		std::atomic<uint64_t> m_lastIP {0};
+		std::atomic<uint64_t> m_currentIP {0};
 
 		// This is only meaningful after the target exits. In the future, we should enforce a check for the target
 		// status before returning the value
-		uint32_t m_exitCode = 0;
+		std::atomic<uint32_t> m_exitCode {0};
 
 		DebugAdapterOperation m_lastOperation = DebugAdapterGo;
 
@@ -168,8 +168,12 @@ namespace BinaryNinjaDebugger {
 		// (if any) gets interrupted and the queued task can proceed.
 		void RequestInterrupt();
 
-		bool m_inputFileLoaded = false;
-		bool m_initialBreakpointSeen = false;
+		std::atomic<bool> m_inputFileLoaded {false};
+		std::atomic<bool> m_initialBreakpointSeen {false};
+		// Set when the target is gone (exit, detach, failed launch) and cleared when the next session starts. An adapter
+		// announces a resume after it has asked its backend to resume, so a target that exits at once can have its exit
+		// processed first. That late announcement must not make the controller believe it is connected and running.
+		std::atomic<bool> m_targetGone {false};
 
 		bool m_firstLaunch = true;
 		bool m_firstConnect = true;
@@ -308,7 +312,8 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_eventsMutex;
 		std::condition_variable m_cv;
 		std::queue<std::shared_ptr<PendingEvent>> m_eventQueue;
-		std::thread::id m_dispatcherThreadId;
+		// Written once by the dispatcher thread when it starts, and read by every API thread
+		std::atomic<std::thread::id> m_dispatcherThreadId;
 		std::atomic_bool m_shouldExit;
 		std::thread m_debuggerEventThread;
 		void DebuggerMainThread();

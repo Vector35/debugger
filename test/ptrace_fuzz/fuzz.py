@@ -33,6 +33,11 @@ def run(seed, mode, pause, flags):
     cmd = [sys.executable, os.path.join(here, 'session.py'), progs, mode, str(seed), str(a.nops)] + ([] if pause else ['--no-pause']) + flags
     try:
         pr = subprocess.run(cmd, capture_output=True, text=True, timeout=int(300 * float(os.environ.get('FUZZ_TIME_SCALE', '1'))))
+        save = os.environ.get('FUZZ_SAVE_DIR')
+        if save and pr.returncode != 0:
+            os.makedirs(save, exist_ok=True)
+            with open(os.path.join(save, f'{cmd[4]}-{cmd[5]}.log'), 'w') as f:
+                f.write(' '.join(cmd) + '\n' + pr.stdout + '\n--- stderr ---\n' + pr.stderr)
         return cmd, pr.returncode, pr.stdout[-6000:], pr.stderr[-2000:]
     except subprocess.TimeoutExpired as e:
         return cmd, 'TIMEOUT', (e.stdout or b'')[-3000:], ''

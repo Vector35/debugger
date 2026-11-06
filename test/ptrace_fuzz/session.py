@@ -266,7 +266,18 @@ def op_memrw():
             pass
 
 
+def process_gone(p):
+    # A leader that exited while other threads still run is a zombie of a living process
+    try:
+        return all(open(f'/proc/{p}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0] in 'ZX'
+                   for t in os.listdir(f'/proc/{p}/task'))
+    except OSError:
+        return True
+
+
 def op_regs():
+    if not dbg.active_pid or process_gone(dbg.active_pid):
+        return  # the target is gone (killed from outside, for one), and its registers with it
     if not alive or (last_reason[0] and last_reason[0][1] in (DebugStopReason.TimedOut, DebugStopReason.ProcessExited, DebugStopReason.InvalidStatusOrOperation)):
         return  # registers cannot be written while the target runs or is gone
     reg = rng.choice(['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r15', 'eflags', 'rip', 'rsp', 'xmm0', 'ymm0', 'st0', 'fs_base', 'bogus'])

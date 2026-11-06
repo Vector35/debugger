@@ -1890,6 +1890,11 @@ DebugStopReason DebuggerController::PauseAndWait(std::chrono::milliseconds timeo
 		return TimedOut;
 	}
 
+	// The operation that was in flight may have ended because the target went away, not because it was stopped. Say so,
+	// instead of reporting a break that was never made.
+	if (!m_state->IsConnected())
+		return ProcessExited;
+
 	return DebugStopReason::UserRequestedBreak;
 }
 
@@ -2143,17 +2148,20 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 	switch (event.type)
 	{
 	case LaunchEventType:
-	case ResumeEventType:
-	case StepIntoEventType:
 	{
-		// Todo: this is just a temporary workaround. Otherwise, the connection status would not be set properly
+		m_targetGone = false;
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 		break;
 	}
+	case ResumeEventType:
+	case StepIntoEventType:
 	case StepOverEventType:
 	{
-		// Add support for StepOverEventType with same logic as StepIntoEventType
+		// The target may already have exited: see m_targetGone
+		if (m_targetGone)
+			break;
+		// Todo: this is just a temporary workaround. Otherwise, the connection status would not be set properly
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 		break;
@@ -2164,6 +2172,7 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 	case DetachedEventType:
 	case LaunchFailureEventType:
 	{
+		m_targetGone = true;
 		// Light, lock-free state only -- safe to run even while the adapter lock is held (it is,
 		// when this runs synchronously inside a locked ExecuteAdapterAndWait op such as Quit).
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
@@ -2172,7 +2181,7 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 		m_initialBreakpointSeen = false;
 		ClearTTDPositionHistory();
 
-		m_lastIP = m_currentIP;
+		m_lastIP = m_currentIP.load();
 		m_currentIP = 0;
 
 		// The remaining cleanup (MarkDirty / RemoveDebuggerMemoryRegion / accessor disposal /
@@ -2194,11 +2203,14 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 	}
 	case TargetStoppedEventType:
 	{
+		// A stop that was reported before the target exited: nothing is left to look at
+		if (m_targetGone)
+			break;
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		m_state->MarkDirty();
 		m_state->UpdateCaches();
-		m_lastIP = m_currentIP;
+		m_lastIP = m_currentIP.load();
 		m_currentIP = m_state->IP();
 		m_ranges.clear();
 
@@ -2215,14 +2227,14 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 	case ActiveThreadChangedEvent:
 	{
 		m_state->UpdateCaches();
-		m_lastIP = m_currentIP;
+		m_lastIP = m_currentIP.load();
 		m_currentIP = m_state->IP();
 		AddRegisterValuesToExpressionParser();
 		break;
 	}
 	case RegisterChangedEvent:
 	{
-		m_lastIP = m_currentIP;
+		m_lastIP = m_currentIP.load();
 		m_currentIP = m_state->IP();
 		AddRegisterValuesToExpressionParser();
 		break;
@@ -2479,6 +2491,12 @@ void DebuggerController::HandleSpontaneousAdapterStop(DebugStopReason reason)
 	// The adapter reported a stop with no controller op in flight. This is the
 	// case the dispatcher previously synthesized a TargetStoppedEvent for at
 	// `debuggercontroller.cpp:2279` in the pre-refactor code.
+	//
+	// This runs on the worker, possibly after the target exited or was killed: the stop was queued before that. It
+	// must not make a dead target look connected and paused. (A stop that belongs to an earlier session cannot run
+	// after a new launch, which is queued behind it and has not cleared the flag yet when this runs.)
+	if (m_targetGone)
+		return;
 	m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 	m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 	m_state->MarkDirty();
