@@ -29,6 +29,7 @@ limitations under the License.
 #include <QMessageBox>
 #include <QStyleOptionButton>
 #include "breakpointswidget.h"
+#include "debuggeruicommon.h"
 #include "base/assertions.h"
 #include "hardwarebreakpointdialog.h"
 #include "ui.h"
@@ -453,7 +454,16 @@ DebugBreakpointsWidget::~DebugBreakpointsWidget() {}
 
 void DebugBreakpointsWidget::onDoubleClicked()
 {
-	jump();
+	// Navigate to the breakpoint, opening it in the other pane when it is a different kind
+	// of thing (code vs data) than the current pane shows (see NavigateToAddress, issue
+	// #1134). The "Jump To Breakpoint" context menu action always uses the current pane.
+	QModelIndexList sel = selectionModel()->selectedRows();
+	if (sel.empty())
+		return;
+
+	BreakpointItem bp = m_model->getRow(sel[0].row());
+	if (m_controller->GetData())
+		NavigateToAddress(this, m_controller->GetData(), bp.address());
 }
 
 

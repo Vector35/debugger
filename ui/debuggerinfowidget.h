@@ -127,9 +127,15 @@ Q_OBJECT;
 	std::vector<DebuggerInfoEntry> getInfoForHLILConditions(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
 
 	void updateColumnWidths();
+	// The value of the selected entry, interpreted as an address, or false if there is no
+	// selection.
+	bool selectedValue(uint64_t& value);
+
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 private slots:
 	void onDoubleClicked();
+	void navigateInCurrentPane();
 
 public:
 	DebuggerInfoTable(BinaryViewRef data);
