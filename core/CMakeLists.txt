@@ -131,6 +131,45 @@ if(NOT LLDB_PATH)
 endif()
 message(STATUS "lldb: using install at ${LLDB_PATH}")
 
+if(DEFINED ENV{GDB_PATH})
+	set(GDB_PATH "$ENV{GDB_PATH}" CACHE PATH "GDB install tree to bundle" FORCE)
+endif()
+if(WIN32)
+	set(GDB_DEFAULT_PATH "$ENV{USERPROFILE}/GDB")
+else()
+	set(GDB_DEFAULT_PATH "$ENV{HOME}/GDB")
+endif()
+if(NOT GDB_PATH AND (EXISTS "${GDB_DEFAULT_PATH}/bin/gdb" OR EXISTS "${GDB_DEFAULT_PATH}/bin/gdb.exe"))
+	set(GDB_PATH "${GDB_DEFAULT_PATH}" CACHE PATH "GDB install tree to bundle" FORCE)
+endif()
+set(GDB_PATH "${GDB_PATH}" CACHE PATH "GDB install tree to bundle (defaults to ~/GDB when installed)")
+
+if(GDB_PATH)
+	if(NOT EXISTS "${GDB_PATH}/bin/gdb" AND NOT EXISTS "${GDB_PATH}/bin/gdb.exe")
+		message(FATAL_ERROR "GDB_PATH does not contain bin/gdb or bin/gdb.exe: ${GDB_PATH}")
+	endif()
+	message(STATUS "gdb: bundling install from ${GDB_PATH}")
+	set(GDB_BUNDLE_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb")
+	if(APPLE AND BN_INTERNAL_BUILD)
+		get_filename_component(GDB_CONTENTS_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/../.." ABSOLUTE)
+		add_custom_target(bundle_gdb
+			COMMAND ${CMAKE_COMMAND} "-DGDB_SOURCE=${GDB_PATH}"
+				"-DCONTENTS=${GDB_CONTENTS_DIRECTORY}"
+				-P "${CMAKE_CURRENT_SOURCE_DIR}/BundleGdbMac.cmake"
+			COMMENT "Bundling macOS GDB code and resources" VERBATIM)
+	else()
+		add_custom_target(bundle_gdb
+			COMMAND ${CMAKE_COMMAND} -E copy_directory
+				"${GDB_PATH}" "${GDB_BUNDLE_DIRECTORY}"
+			COMMENT "Copying bundled GDB installation"
+			VERBATIM
+		)
+	endif()
+	add_dependencies(debuggercore bundle_gdb)
+else()
+	message(STATUS "gdb: no bundled install configured")
+endif()
+
 if (APPLE)
 	find_library(lib_lldb NAMES lldb.${LLVM_VERSION} lldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
 	target_link_libraries(debuggercore ${lib_lldb})
