@@ -2,6 +2,7 @@
 #include <iostream>
 #include <binaryninjaapi.h>
 #include <fcntl.h>
+#include <filesystem>
 #ifdef WIN32
 #else
 #include <spawn.h>
@@ -286,6 +287,19 @@ bool GdbMiConnector::Start()
     argv.push_back(const_cast<char*>(gdbPathCopy.c_str()));
     argv.push_back(const_cast<char*>(miArg.c_str()));
     argv.push_back(const_cast<char*>(miArg2.c_str()));
+#ifdef __APPLE__
+    // Only override the data directory for our app-bundled helper, not custom GDB installs.
+    const auto pluginsDirectory = std::filesystem::path(GetBundledPluginDirectory());
+    const auto bundledHelper = pluginsDirectory / "gdb";
+    std::string dataDirectoryArg;
+    std::error_code pathError;
+    if (std::filesystem::equivalent(m_gdbPath, bundledHelper, pathError))
+    {
+        dataDirectoryArg = "--data-directory="
+            + (pluginsDirectory.parent_path().parent_path() / "Resources" / "gdb").string();
+        argv.push_back(dataDirectoryArg.data());
+    }
+#endif
     if (!m_targetExecutable.empty()) {
         argv.push_back(const_cast<char*>(targetCopy.c_str()));
     }

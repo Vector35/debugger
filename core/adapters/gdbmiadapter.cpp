@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cinttypes>
 #include <cctype>
+#include <filesystem>
 #include "../debuggercontroller.h"
 #include "../../cli/log.h"
 
@@ -881,7 +882,21 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 		return false;
 	}
 
-	if (gdbPath.empty()) return false;
+	auto reportLaunchFailure = [this](const std::string& message) {
+		LogError("%s", message.c_str());
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.shortError = "Failed to start GDB";
+		event.data.errorData.error = message;
+		PostDebuggerEvent(event);
+	};
+	std::error_code pathError;
+	if (gdbPath.empty() || !std::filesystem::is_regular_file(gdbPath, pathError))
+	{
+		reportLaunchFailure("GDB executable does not exist: " + gdbPath
+			+ ". Install the bundled GDB or configure gdb.path.");
+		return false;
+	}
 
 	if (inputFile.empty()) inputFile = symbolFile;
 
@@ -894,6 +909,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 
 	if (!m_mi->Start())
 	{
+		reportLaunchFailure("Could not launch GDB executable: " + gdbPath);
 		Stop();
 		return false;
 	}
@@ -903,14 +919,14 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
     m_mi->SendCommand("-gdb-set confirm off");
     m_mi->SendCommand("-enable-frame-filters");
     if (!symbolFile.empty())
-        m_mi->SendCommand("-interpreter-exec console "
-            + QuoteMiString("add-symbol-file " + QuoteConsoleArgument(symbolFile)));
+        m_mi->SendCommand("-file-symbol-file " + QuoteMiString(symbolFile));
 
     m_mi->SendCommand("-file-exec-file " + QuoteMiString(inputFile));
 	// TODO: we should offer an option on whether or not to connect in extended mode
     std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
 
-    auto result = m_mi->SendCommand(connectCmd, 1000);
+    // Remote initialization can download loader and shared-library symbols.
+    auto result = m_mi->SendCommand(connectCmd, 30000);
 	m_connected = (result.command == "connected");
 	if (!m_connected)
 	{
@@ -1347,8 +1363,8 @@ bool GdbMiAdapter::SetActiveThread(const DebugThread& thread) { return SetActive
 DebugBreakpoint GdbMiAdapter::AddBreakpoint(std::uintptr_t address, unsigned long breakpoint_type) {
     if (!m_mi) { return {}; }
 
-    LogDebug("-break-insert -h *0x%" PRIx64, (uint64_t)address);
-    auto result = m_mi->SendCommand(fmt::format("-break-insert -h *0x{:x}", address));
+    LogDebug("-break-insert *0x%" PRIx64, (uint64_t)address);
+    auto result = m_mi->SendCommand(fmt::format("-break-insert *0x{:x}", address));
     if (result.command == "done") {
         DebuggerEvent evt;
 		evt.type = BackendMessageEventType;
@@ -2106,6 +2122,32 @@ void GdbMiAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("launch.executablePath", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+
+	scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("gdb.path", data, &scope);
+	if (scope != SettingsResourceScope)
+	{
+		std::filesystem::path pluginRoot;
+		if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+			pluginRoot = GetUserPluginDirectory();
+		else
+		{
+			pluginRoot = GetBundledPluginDirectory();
+#ifdef __APPLE__
+			const auto executablePath = pluginRoot / "gdb";
+			adapterSettings->Set("gdb.path", executablePath.string(), data, SettingsResourceScope);
+			return;
+#endif
+		}
+#ifdef WIN32
+		const auto executable = "gdb.exe";
+#else
+		const auto executable = "gdb";
+#endif
+		adapterSettings->Set("gdb.path", (pluginRoot / "gdb" / "bin" / executable).string(), data,
+			SettingsResourceScope);
+	}
+
 }
 
 bool GdbMiAdapterType::CanExecute(BinaryView* data)
@@ -2124,8 +2166,8 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
     settings->SetResourceId("gdb_mi_adapter_settings");
     settings->RegisterSetting("gdb.path", R"({
         "title": "Full GDB Executable Path",
-        "type": "string", "default": "/usr/bin/gdb",
-        "description": "Path to the GDB executable e.g., gdb-multiarch, arm-none-eabi-gdb.",
+		"type": "string", "default": "",
+		"description": "Path to the GDB executable. Defaults to the GDB bundled with the debugger; set this to use a different GDB build.",
         "uiSelectionAction": "file"
     })");
 	settings->RegisterSetting("common.inputFile",
