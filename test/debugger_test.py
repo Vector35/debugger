@@ -13,10 +13,11 @@ import tempfile
 import unittest
 
 from binaryninja import load, Settings
+from binaryninja.enums import SettingsScope
 try:
-    from debugger import DebuggerController, DebugStopReason, DebugBreakpointType
+    from debugger import DebuggerController, DebugStopReason, DebugBreakpointType, DebuggerEventType, ModuleNameAndOffset
 except:
-    from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType
+    from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType, DebuggerEventType, ModuleNameAndOffset
 
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)
 # 'helloworld' -> '{BN_SOURCE_ROOT}/public/debugger/test/binaries/Darwin/arm64/helloworld' (linux, macOS)
@@ -54,6 +55,19 @@ def is_wow64(fpath):
         return False
     a, b = platform.architecture()
     return a == '64bit' and b.startswith('Windows')
+
+
+def can_attach_to_unrelated_process():
+    """Attaching to a process that is not a descendant needs root, or a Yama scope of 0 (or no Yama)"""
+    if os.name != 'posix':
+        return False
+    if os.geteuid() == 0:
+        return True
+    try:
+        with open('/proc/sys/kernel/yama/ptrace_scope') as f:
+            return f.read().strip() == '0'
+    except OSError:
+        return True
 
 
 def sleep_and_go(dbg):
@@ -463,9 +477,10 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit_and_wait()
 
-    @unittest.skipIf(platform.system() == 'Linux', 'Hardware breakpoints not yet supported on Linux')
     def test_hardware_breakpoint(self):
         """Test hardware breakpoint add and delete"""
+        if platform.system() == 'Linux' and self.adapter_type != 'PTRACE':
+            self.skipTest('Hardware breakpoints not yet supported on Linux')
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
         dbg = self.create_debugger(bv)
@@ -628,8 +643,9 @@ class DebuggerAPI(unittest.TestCase):
             reason = sleep_and_go(dbg)
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
-    @unittest.skipIf(platform.system() == 'Linux', 'Cannot attach to pid unless running as root')
     def test_attach(self):
+        if platform.system() == 'Linux' and not (self.adapter_type == 'PTRACE' and can_attach_to_unrelated_process()):
+            self.skipTest('Cannot attach to pid unless running as root')
         from attach_test_runner import run_attach_test
         fpath = name_to_fpath('helloworld_loop', self.arch)
         worker = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'attach_test_runner.py')
@@ -715,6 +731,426 @@ class GdbMiLinuxTest(DebuggerAPI):
             finally:
                 if dbg.connected:
                     dbg.quit_and_wait()
+
+
+class PtraceAdapterTests:
+    """The tests for what only the PTRACE adapter does. They come on top of the ones of DebuggerAPI."""
+
+    def create_debugger(self, bv):
+        dbg = super().create_debugger(bv)
+
+        # Debugger settings are registered lazily when the first controller is constructed
+        if not hasattr(self, '_entry_settings_configured'):
+            settings = Settings()
+            previous_system_entry = settings.get_bool('debugger.stopAtSystemEntryPoint')
+            previous_program_entry = settings.get_bool('debugger.stopAtEntryPoint')
+            self.assertTrue(settings.set_bool('debugger.stopAtSystemEntryPoint', False))
+            self.assertTrue(settings.set_bool('debugger.stopAtEntryPoint', True))
+            self.addCleanup(settings.set_bool, 'debugger.stopAtEntryPoint', previous_program_entry)
+            self.addCleanup(settings.set_bool, 'debugger.stopAtSystemEntryPoint', previous_system_entry)
+            self._entry_settings_configured = True
+
+        return dbg
+
+    def ptrace_fixture(self):
+        if self.arch != 'x86_64':
+            self.skipTest('These lifecycle fixtures require a native x86-64 Linux build')
+        directory = os.environ.get('PTRACE_TEST_BUILD_DIR')
+        if not directory:
+            self.skipTest('Set PTRACE_TEST_BUILD_DIR to the standalone ptrace test build')
+        fixture = os.path.join(directory, 'progs')
+        self.assertTrue(os.path.isfile(fixture), fixture)
+        return fixture
+
+    def _step_until_exit_after_marker(self, mode, expected_code=9):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = mode
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        marker = bv.get_symbols_by_name('marker')[0].address
+        dbg.add_breakpoint(marker)
+        self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.Breakpoint)
+        self.assertEqual(dbg.ip, marker)
+        self.assertGreaterEqual(len(list(dbg.threads)), 2)
+        for _ in range(2000):
+            reason = dbg.step_into_and_wait(timeout=20000)
+            if reason == DebugStopReason.ProcessExited:
+                break
+            self.assertIn(reason, [DebugStopReason.SingleStep, DebugStopReason.Breakpoint], f'unexpected stop {reason}')
+        else:
+            self.fail('the exit of the target was not reported')
+        self.assertEqual(dbg.exit_code, expected_code)
+
+    def test_relaunch_after_a_target_that_exits_at_once(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'hello'
+        hogs = [subprocess.Popen(['yes'], stdout=subprocess.DEVNULL) for _ in range(2 * (os.cpu_count() or 4))]
+        try:
+            for i in range(250):
+                reason = dbg.launch_and_wait(20000)
+                self.assertNotIn(reason, [DebugStopReason.InvalidStatusOrOperation, DebugStopReason.TimedOut],
+                                 f'launch {i} was refused')
+                self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.ProcessExited)
+                self.assertFalse(dbg.connected, f'the controller is still connected after the exit in cycle {i}')
+        finally:
+            for hog in hogs:
+                hog.kill()
+                hog.wait()
+
+    def test_pause_after_the_target_exited(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        for _ in range(5):
+            dbg.cmd_line = 'exitleader'
+            self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            pid = dbg.active_pid
+            self.assertTrue(dbg.go())
+
+            def gone():
+                try:
+                    return all(open(f'/proc/{pid}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0] in 'ZX'
+                       for t in os.listdir(f'/proc/{pid}/task'))
+                except OSError:
+                    return True
+            deadline = time.time() + 20
+            while not gone() and time.time() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(gone(), 'the target did not exit')
+            self.assertIn(dbg.pause_and_wait(10000), [DebugStopReason.ProcessExited, DebugStopReason.InvalidStatusOrOperation])
+            dbg.quit_and_wait(10000)
+
+    def test_exit_group_by_stepped_leader(self):
+        self._step_until_exit_after_marker('exitleader')
+
+    def test_exit_group_by_stepped_thread(self):
+        self._step_until_exit_after_marker('exitthread')
+
+    def test_remove_module_relative_breakpoint(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'bploop'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.SignalUsr1)
+            pid = dbg.active_pid
+            marker = bv.get_symbols_by_name('marker')[0].address
+            module = next(m for m in dbg.modules if os.path.realpath(m.name) == os.path.realpath(dbg.executable_path))
+            location = ModuleNameAndOffset(module.short_name, marker - module.address)
+
+            def raw_byte():
+                with open(f'/proc/{pid}/mem', 'rb', buffering=0) as memory:
+                    memory.seek(marker)
+                    return memory.read(1)
+            original = raw_byte()
+            dbg.add_breakpoint(location)
+            self.assertEqual(raw_byte(), b'\xcc')
+            self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.Breakpoint)
+            self.assertEqual(dbg.ip, marker)
+            dbg.delete_breakpoint(location)
+            self.assertEqual(raw_byte(), original, 'the breakpoint byte is still in the target')
+            self.assertEqual(dbg.go_and_wait(timeout=1500), DebugStopReason.TimedOut, 'the target still stops at the removed breakpoint')
+            dbg.pause_and_wait(10000)
+            self.assertEqual(raw_byte(), original)
+        finally:
+            dbg.quit_and_wait(10000)
+
+    def test_single_step_through_system_calls(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'syscalls'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        reasons = set()
+        for _ in range(60000):
+            reason = dbg.step_into_and_wait(timeout=20000)
+            if reason == DebugStopReason.ProcessExited:
+                break
+            reasons.add(reason)
+        else:
+            self.fail('the target did not exit while being stepped')
+        self.assertTrue(reasons <= {DebugStopReason.SingleStep, DebugStopReason.Breakpoint, DebugStopReason.SignalUsr1},
+                        f'unexpected stop reasons while stepping: {reasons}')
+        self.assertNotEqual(dbg.exit_code, 128 + 5, 'the target was killed by a SIGTRAP that the debugger delivered')
+
+    def test_quit_after_queued_resume_operations(self):
+        # Resume operations queued behind a running Go must not run after Quit is requested.
+        # Otherwise the second Go resumes the target and Quit never gets to run.
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'loop'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        pid = dbg.active_pid
+        self.assertEqual(dbg.go_and_wait(timeout=1000), DebugStopReason.TimedOut)
+        self.assertEqual(dbg.step_return_and_wait(timeout=500), DebugStopReason.TimedOut)
+        self.assertEqual(dbg.go_and_wait(timeout=500), DebugStopReason.TimedOut)
+        started = time.time()
+        dbg.quit_and_wait(10000)
+        self.assertLess(time.time() - started, 5)
+        deadline = time.time() + 5
+        while os.path.exists(f'/proc/{pid}') and time.time() < deadline:
+            try:
+                with open(f'/proc/{pid}/stat') as f:
+                    if f.read().rsplit(')', 1)[1].split()[0] == 'Z':
+                        break
+            except OSError:
+                break
+            time.sleep(0.05)
+        self.assertFalse(os.path.exists(f'/proc/{pid}') and open(f'/proc/{pid}/stat').read().rsplit(')', 1)[1].split()[0] != 'Z',
+                         'target survived quit')
+
+    def test_restart_from_blocked_output_callback(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'bploop'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        old_pid = dbg.active_pid
+        finished = threading.Event()
+        outcomes = []
+        entered = threading.Event()
+
+        def callback(event):
+            if event.type != DebuggerEventType.StdoutMessageEventType or entered.is_set():
+                return
+            entered.set()
+            try:
+                # The dispatcher stays inside this callback while restart must stop the
+                # old target. Its engine must continue delivering internal stop/exit events.
+                dbg.restart()
+                deadline = time.monotonic() + 5
+                while dbg.connected and dbg.active_pid == old_pid and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                outcomes.append(not dbg.connected or dbg.active_pid != old_pid)
+            finally:
+                finished.set()
+
+        handle = dbg.register_event_callback(callback, 'ptrace blocked callback restart')
+        try:
+            dbg.go()
+            self.assertTrue(finished.wait(10), 'Restart could not progress while the public callback was blocked')
+            self.assertEqual(outcomes, [True])
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                if dbg.connected and dbg.active_pid != old_pid and not dbg.running:
+                    break
+                time.sleep(0.02)
+            self.assertTrue(dbg.connected)
+            self.assertNotEqual(dbg.active_pid, old_pid)
+            self.assertFalse(dbg.running)
+        finally:
+            dbg.remove_event_callback(handle)
+            dbg.quit_and_wait(10000)
+
+    def test_simultaneous_module_breakpoints(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'multiload'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            dbg.go_and_wait(20000)
+            first = [module for module in dbg.modules if module.name.endswith('/libtest.so')]
+            self.assertEqual(len(first), 1)
+            self.assertGreater(dbg.load_symbols_for_module(first[0].short_name), 0)
+            symbol = bv.get_symbols_by_name('libfunc')[0]
+            address = symbol.address
+            offset = address - first[0].address
+            dbg.add_breakpoint(ModuleNameAndOffset(first[0].short_name, offset))
+            dbg.go_and_wait(20000)
+            copies = [module for module in dbg.modules if module.name.endswith('/libtest.so')]
+            self.assertEqual(len(copies), 2)
+            self.assertEqual(len({module.short_name for module in copies}), 2)
+            other = next(module for module in copies if module.address != first[0].address)
+            dbg.add_breakpoint(ModuleNameAndOffset(other.short_name, offset))
+            hits = set()
+            for _ in range(2):
+                self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.Breakpoint)
+                hits.add(dbg.ip)
+            self.assertEqual(hits, {address, other.address + offset})
+        finally:
+            dbg.quit_and_wait(10000)
+
+    def test_module_breakpoint_name_roundtrip(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            module = next(module for module in dbg.modules if os.path.realpath(module.name) == os.path.realpath(dbg.executable_path))
+            address = dbg.ip + 8
+            offset = address - module.address
+            with open(f'/proc/{dbg.active_pid}/mem', 'rb', buffering=0) as memory:
+                def raw_byte(at=address):
+                    memory.seek(at)
+                    return memory.read(1)
+                original = raw_byte()
+                for name in (module.name, module.short_name):
+                    location = ModuleNameAndOffset(name, offset)
+                    survivor = address + 8
+                    survivor_original = raw_byte(survivor)
+                    dbg.add_breakpoint(location)
+                    dbg.add_breakpoint(survivor)
+                    self.assertEqual(raw_byte(), b'\xcc')
+                    dbg.delete_breakpoint(location)
+                    self.assertEqual(raw_byte(), original)
+                    self.assertEqual(raw_byte(survivor), b'\xcc')
+                    self.assertTrue(dbg.has_breakpoint(survivor))
+                    dbg.delete_breakpoint(survivor)
+                    self.assertEqual(raw_byte(survivor), survivor_original)
+                    self.assertTrue(dbg.add_hardware_breakpoint(location, DebugBreakpointType.BNHardwareExecuteBreakpoint, 1))
+                    self.assertTrue(dbg.delete_hardware_breakpoint(location, DebugBreakpointType.BNHardwareExecuteBreakpoint, 1))
+        finally:
+            dbg.quit_and_wait(10000)
+
+    def set_redirects(self, dbg, bv, redirects):
+        settings = dbg.adapter_settings
+        self.assertIsNotNone(settings)
+        self.assertTrue(settings.contains('launch.redirectFileDescriptors'))
+        self.assertTrue(settings.set_string_list('launch.redirectFileDescriptors', redirects, bv,
+                                                 SettingsScope.SettingsResourceScope))
+
+    def test_redirect_stdout(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        expected = subprocess.run([fpath], capture_output=True, timeout=30).stdout
+        self.assertTrue(expected)
+
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        dbg.executable_path = fpath
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_path = os.path.join(temp_dir, 'out.txt')
+            self.set_redirects(dbg, bv, ['1>' + out_path])
+            self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
+            with open(out_path, 'rb') as f:
+                self.assertEqual(f.read(), expected)
+
+    def test_redirect_stdin(self):
+        fpath = name_to_fpath('cat', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        dbg.executable_path = fpath
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_path = os.path.join(temp_dir, 'in.txt')
+            out_path = os.path.join(temp_dir, 'out.txt')
+            with open(in_path, 'w') as f:
+                f.write('read from a file\n')
+            self.set_redirects(dbg, bv, ['0<' + in_path, '1>' + out_path])
+            self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
+            with open(out_path) as f:
+                self.assertEqual(f.read(), 'read from a file\n')
+
+    def test_redirect_bad_file(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        dbg.executable_path = fpath
+        self.set_redirects(dbg, bv, ['0</nonexistent/directory/file'])
+        self.assertIn(dbg.launch_and_wait(), [DebugStopReason.InternalError])
+
+    def test_detach_lets_the_target_run(self):
+        fpath = name_to_fpath('helloworld_loop', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        pid = dbg.active_pid
+        self.assertGreater(pid, 0)
+        try:
+            dbg.go()
+            time.sleep(1)
+            dbg.pause_and_wait()
+            dbg.detach_and_wait()
+            time.sleep(0.5)
+
+            with open(f'/proc/{pid}/status') as f:
+                state = [line for line in f if line.startswith('State:')][0].split()[1]
+            # Not stopped by the tracing, and not a zombie either
+            self.assertNotIn(state, ['t', 'T', 'Z'])
+        finally:
+            try:
+                os.kill(pid, 9)
+            except ProcessLookupError:
+                pass
+
+    def wait_until_stopped(self, dbg, timeout=10):
+        deadline = time.monotonic() + timeout
+        while dbg.running and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(dbg.running)
+
+    def test_backend_syscall_commands(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            self.assertIn('syscall-info', dbg.execute_backend_command('help'))
+            # Stopped at the entry point, and not at a system call
+            self.assertIn('not stopped at a system call', dbg.execute_backend_command('syscall-info'))
+
+            # Run to a system call and back out of it: an entry, and then the exit of the same call
+            dbg.execute_backend_command('syscall')
+            self.wait_until_stopped(dbg)
+            self.assertIn('system call entry', dbg.execute_backend_command('syscall-info'))
+            call = dbg.get_adapter_property('syscall')
+            self.assertEqual(call['op'], 'entry')
+            self.assertEqual(len(call['args']), 6)
+            dbg.execute_backend_command('syscall')
+            self.wait_until_stopped(dbg)
+            self.assertIn('system call exit', dbg.execute_backend_command('syscall-info'))
+            self.assertEqual(dbg.get_adapter_property('syscall')['op'], 'exit')
+
+            # sysemu stops at an entry and never at an exit, because the call is not made
+            dbg.execute_backend_command('sysemu')
+            self.wait_until_stopped(dbg)
+            self.assertEqual(dbg.get_adapter_property('syscall')['op'], 'entry')
+
+            self.assertIn('unknown command', dbg.execute_backend_command('no-such-command'))
+        finally:
+            dbg.quit_and_wait()
+
+    def test_stripped_pie_entry_point(self):
+        strip_path = shutil.which('strip')
+        if strip_path is None:
+            self.skipTest('strip is not installed')
+
+        source_path = name_to_fpath('helloworld_pie', self.arch)
+        if not os.path.exists(source_path):
+            self.skipTest('PIE test binary not built')
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stripped_path = os.path.join(temp_dir, 'helloworld_pie_stripped')
+            shutil.copy2(source_path, stripped_path)
+            subprocess.run([strip_path, '--strip-all', stripped_path], check=True)
+
+            bv = load(stripped_path)
+            dbg = self.create_debugger(bv)
+            dbg.executable_path = stripped_path
+
+            try:
+                reason = dbg.launch_and_wait(20000)
+                self.assertEqual(reason, DebugStopReason.Breakpoint)
+
+                remote_base = dbg.get_remote_base()
+                self.assertIsNotNone(remote_base)
+                self.assertEqual(dbg.ip, remote_base + (bv.entry_point - bv.start))
+            finally:
+                if dbg.connected:
+                    dbg.quit_and_wait()
+
+
+@unittest.skipUnless(platform.system() == 'Linux', 'The PTRACE adapter only works on Linux')
+@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'The PTRACE adapter only supports x86 and x86_64')
+class PtraceLinuxx64Test(PtraceAdapterTests, DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'x86_64'
+        self.adapter_type = 'PTRACE'
+
+
+@unittest.skipUnless(platform.system() == 'Linux', 'The PTRACE adapter only works on Linux')
+@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'The PTRACE adapter only supports x86 and x86_64')
+class PtraceLinuxx86Test(PtraceAdapterTests, DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'x86'
+        self.adapter_type = 'PTRACE'
 
 
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
