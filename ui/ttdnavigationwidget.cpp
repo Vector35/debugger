@@ -297,21 +297,15 @@ bool TTDNavigationWidget::parseMemoryTarget(uint64_t& address, uint64_t& size)
 	if (text.isEmpty())
 		return false;
 
-	// Ranges are written as "start..end"; " - " is accepted too since it reads more naturally.
-	// Neither separator can appear in a single address expression, where "-" is subtraction.
+	// Only ".." separates range endpoints; "-" remains subtraction in address expressions.
 	QString startText = text;
 	QString endText;
-	bool hasRange = false;
-	for (const QString& separator : {QString(".."), QString(" - ")})
+	int rangeIndex = text.indexOf("..");
+	bool hasRange = rangeIndex >= 0;
+	if (hasRange)
 	{
-		int index = text.indexOf(separator);
-		if (index < 0)
-			continue;
-
-		startText = text.left(index).trimmed();
-		endText = text.mid(index + separator.size()).trimmed();
-		hasRange = true;
-		break;
+		startText = text.left(rangeIndex).trimmed();
+		endText = text.mid(rangeIndex + 2).trimmed();
 	}
 	if (startText.isEmpty() || (hasRange && endText.isEmpty()))
 	{
