@@ -21,7 +21,6 @@ limitations under the License.
 #include "viewframe.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
-#include <QApplication>
 #include <QPixmap>
 #include <algorithm>
 
@@ -182,7 +181,7 @@ void TTDNavigationWidget::setTargetIsRegister(bool isRegister)
 	m_readAccessCheck->setEnabled(!isRegister);
 	m_writeAccessCheck->setEnabled(!isRegister);
 	m_executeAccessCheck->setEnabled(!isRegister);
-	m_showAllButton->setEnabled(!isRegister);
+	updateNavigationButtons();
 }
 
 
@@ -346,11 +345,16 @@ bool TTDNavigationWidget::parseMemoryTarget(uint64_t& address, uint64_t& size)
 
 void TTDNavigationWidget::navigate(bool forward)
 {
+	if (m_queryInProgress)
+		return;
+
 	if (!m_controller || !m_controller->IsConnected() || !m_controller->IsTTD())
 	{
 		setStatus("TTD is not available.");
 		return;
 	}
+	if (m_controller->GetTargetStatus() != DebugAdapterPausedStatus)
+		return;
 
 	std::string target = m_targetEdit->text().trimmed().toStdString();
 	if (target.empty())
@@ -359,16 +363,15 @@ void TTDNavigationWidget::navigate(bool forward)
 		return;
 	}
 
-	// The query runs on this thread and pumps the event loop while it waits, so keep the user
-	// from starting a second one on top of it.
-	m_prevButton->setEnabled(false);
-	m_nextButton->setEnabled(false);
+	m_queryInProgress = true;
+	updateNavigationButtons();
 
 	if (m_targetIsRegister)
 		navigateToRegisterWrite(target, forward);
 	else
 		navigateToMemoryAccess(forward);
 
+	m_queryInProgress = false;
 	updateNavigationButtons();
 }
 
@@ -382,7 +385,8 @@ void TTDNavigationWidget::setStatus(const QString& text)
 
 void TTDNavigationWidget::updateNavigationButtons()
 {
-	bool stopped = m_controller && m_controller->GetTargetStatus() != DebugAdapterRunningStatus;
+	bool stopped = m_controller && m_controller->IsConnected() && m_controller->IsTTD()
+		&& m_controller->GetTargetStatus() == DebugAdapterPausedStatus && !m_queryInProgress;
 	m_prevButton->setEnabled(stopped);
 	m_nextButton->setEnabled(stopped);
 	m_showAllButton->setEnabled(stopped && !m_targetIsRegister);
@@ -394,7 +398,6 @@ void TTDNavigationWidget::navigateToRegisterWrite(const std::string& reg, bool f
 	setStatus(QString("Finding %1 write to %2...")
 							   .arg(forward ? "next" : "previous")
 							   .arg(QString::fromStdString(reg)));
-	QApplication::processEvents();
 
 	auto event = forward ? m_controller->GetTTDNextRegisterWrite(reg) : m_controller->GetTTDPrevRegisterWrite(reg);
 
@@ -437,7 +440,6 @@ void TTDNavigationWidget::navigateToMemoryAccess(bool forward)
 		return;
 
 	setStatus(QString("Finding %1 access...").arg(forward ? "next" : "previous"));
-	QApplication::processEvents();
 
 	auto [success, event] = forward ? m_controller->GetTTDNextMemoryAccess(address, size, accessType) :
 									  m_controller->GetTTDPrevMemoryAccess(address, size, accessType);
@@ -463,11 +465,18 @@ void TTDNavigationWidget::navigateToMemoryAccess(bool forward)
 
 void TTDNavigationWidget::showAllAccesses()
 {
+	if (m_targetIsRegister)
+		return;
+	if (m_queryInProgress)
+		return;
+
 	if (!m_controller || !m_controller->IsConnected() || !m_controller->IsTTD())
 	{
 		setStatus("TTD is not available.");
 		return;
 	}
+	if (m_controller->GetTargetStatus() != DebugAdapterPausedStatus)
+		return;
 
 	TTDMemoryAccessType accessType = getSelectedAccessTypes();
 	if (accessType == 0)

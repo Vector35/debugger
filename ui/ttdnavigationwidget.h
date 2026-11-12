@@ -57,6 +57,7 @@ class TTDNavigationWidget : public QWidget, public UIContextNotification
 	// True when the target field holds a register name rather than an address range. Kept in
 	// sync with the field itself: refreshed both when we auto-fill it and when the user types.
 	bool m_targetIsRegister = false;
+	bool m_queryInProgress = false;
 
 	// The register names of the view's architecture, lower-cased. Used to tell a hand-typed
 	// register name (including sub-registers like "eax") from an address expression.
