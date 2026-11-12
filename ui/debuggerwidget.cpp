@@ -72,7 +72,7 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	m_splitter->setChildrenCollapsible(true);
 
 	m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
-	m_ttdNavigationWidget = new TTDNavigationWidget(this, data);
+	m_ttdNavigationWidget = new TTDNavigationWidget(this, view, data);
 
 	// The controls and the TTD navigation widget form a single pane of the splitter so that the
 	// navigation widget always sits directly underneath the control buttons. The pane hugs its

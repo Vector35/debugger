@@ -41,7 +41,8 @@ static QIcon getColoredIcon(const QString& iconPath, const QColor& color)
 }
 
 
-TTDNavigationWidget::TTDNavigationWidget(QWidget* parent, BinaryViewRef data) : QWidget(parent), m_data(data)
+TTDNavigationWidget::TTDNavigationWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
+	QWidget(parent), m_viewFrame(frame), m_data(data)
 {
 	m_controller = DebuggerController::GetController(data);
 
@@ -142,7 +143,7 @@ void TTDNavigationWidget::OnNewSelectionForXref(
 {
 	if (context != UIContext::contextForWidget(this))
 		return;
-	if (view != context->getCurrentView())
+	if (frame != m_viewFrame || view != context->getCurrentView())
 		return;
 
 	updateTargetFromView(view);
@@ -224,11 +225,10 @@ void TTDNavigationWidget::pinToggled(bool pinned)
 
 void TTDNavigationWidget::refreshTargetFromSelection()
 {
-	UIContext* context = UIContext::contextForWidget(this);
-	if (!context)
+	if (!m_viewFrame)
 		return;
 
-	updateTargetFromView(context->getCurrentView());
+	updateTargetFromView(m_viewFrame->getCurrentViewInterface());
 }
 
 

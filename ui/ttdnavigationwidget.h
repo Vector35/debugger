@@ -40,6 +40,7 @@ class TTDNavigationWidget : public QWidget, public UIContextNotification
 {
 	Q_OBJECT
 
+	ViewFrame* m_viewFrame;
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
 
@@ -77,7 +78,7 @@ class TTDNavigationWidget : public QWidget, public UIContextNotification
 	bool parseMemoryTarget(uint64_t& address, uint64_t& size);
 
 public:
-	TTDNavigationWidget(QWidget* parent, BinaryViewRef data);
+	TTDNavigationWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data);
 	~TTDNavigationWidget();
 
 	// Show/hide the widget based on whether a TTD session is active, and enable/disable the
@@ -95,7 +96,7 @@ public:
 		UIContext* context, ViewFrame* frame, View* view, const SelectionInfoForXref& selection) override;
 
 private Q_SLOTS:
-	// Same as updateTargetFromView(), against whichever view the context currently has open.
+	// Refresh from the view in the owning frame.
 	void refreshTargetFromSelection();
 	void pinToggled(bool pinned);
 	void targetEdited(const QString& text);
