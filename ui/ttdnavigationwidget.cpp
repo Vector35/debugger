@@ -63,7 +63,7 @@ TTDNavigationWidget::TTDNavigationWidget(QWidget* parent, ViewFrame* frame, Bina
 	targetLayout->addWidget(m_targetEdit);
 
 	m_pinCheck = new QCheckBox("Pin");
-	m_pinCheck->setFocusPolicy(Qt::NoFocus);
+	m_pinCheck->setFocusPolicy(Qt::StrongFocus);
 	m_pinCheck->setToolTip(
 		"Pin the target so that it stays put.\n\n"
 		"Unpinned, the target is whatever you have selected in the code view, so it moves along "
@@ -78,15 +78,15 @@ TTDNavigationWidget::TTDNavigationWidget(QWidget* parent, ViewFrame* frame, Bina
 
 	m_readAccessCheck = new QCheckBox("R");
 	m_readAccessCheck->setChecked(true);
-	m_readAccessCheck->setFocusPolicy(Qt::NoFocus);
+	m_readAccessCheck->setFocusPolicy(Qt::StrongFocus);
 	m_readAccessCheck->setToolTip("Stop on reads of the memory range");
 	m_writeAccessCheck = new QCheckBox("W");
 	m_writeAccessCheck->setChecked(true);
-	m_writeAccessCheck->setFocusPolicy(Qt::NoFocus);
+	m_writeAccessCheck->setFocusPolicy(Qt::StrongFocus);
 	m_writeAccessCheck->setToolTip("Stop on writes to the memory range");
 	m_executeAccessCheck = new QCheckBox("X");
 	m_executeAccessCheck->setChecked(true);
-	m_executeAccessCheck->setFocusPolicy(Qt::NoFocus);
+	m_executeAccessCheck->setFocusPolicy(Qt::StrongFocus);
 	m_executeAccessCheck->setToolTip("Stop on execution of the memory range");
 	actionLayout->addWidget(m_readAccessCheck);
 	actionLayout->addWidget(m_writeAccessCheck);
