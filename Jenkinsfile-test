@@ -86,6 +86,17 @@ def lastSuccessfulWithArtifacts(String projectName, String filter) {
 }
 
 // Pull the three prebuilt dependencies into ./artifacts-extern for scripts/build.py.
+@NonCPS
+String gdbBuildNumber(String filter) {
+    def job = Jenkins.get().getItemByFullName('debugger/gdb-build')
+    for (def build = job.lastSuccessfulBuild; build != null; build = build.previousSuccessfulBuild) {
+        if (build.artifacts.any { org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(filter, it.relativePath) }) {
+            return "${build.number}"
+        }
+    }
+    throw new IllegalStateException("No successful GDB build containing ${filter}")
+}
+
 void copyExternalArtifacts(String os) {
     // Qt + LLDB -- commit-matched via the shared library. The debugger has no llvm-build /
     // qt-build submodules, so we pass the pinned commits explicitly (read from the text file)
@@ -113,6 +124,15 @@ void copyExternalArtifacts(String os) {
         projectName: 'binaryninja-dev-pipeline',
         selector: lastSuccessfulWithArtifacts('binaryninja-dev-pipeline', binjaFilter),
         filter: binjaFilter,
+        flatten: true,
+        fingerprintArtifacts: true,
+        target: 'artifacts-extern'
+    )
+    def gdbFilter = "artifacts/gdb_${os}_*.zip"
+    copyArtifacts(
+        projectName: 'debugger/gdb-build',
+        selector: specific(gdbBuildNumber(gdbFilter)),
+        filter: gdbFilter,
         flatten: true,
         fingerprintArtifacts: true,
         target: 'artifacts-extern'
