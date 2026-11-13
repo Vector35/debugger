@@ -208,7 +208,7 @@ Stepping to the next or previous access of a register or a piece of memory is by
     - Put the cursor on a register token (e.g. `rax`) and the target becomes that register, which takes priority over the address the cursor is on
     - Select a range of bytes and the target becomes that address range
     - Otherwise the target is the address the cursor is on
-- You can also type a target in yourself. Address ranges are written as `start..end` (`start - end` works too), and a single address covers one byte. Both ends accept the same expressions as the rest of Binary Ninja, so symbol names work.
+- You can also type a target in yourself. Address ranges are written as `start..end`, and a single address covers one byte. Both ends accept the same expressions as the rest of Binary Ninja, so symbol names work. Note that `-` does not denote an address range; it is parsed as subtraction. Use `..` to separate the start and end addresses.
 - `R`, `W` and `X` choose which kinds of memory access to stop on. They do not apply to a register target, since TTD reports register value changes without an access type, and are disabled in that case.
 - The arrow buttons time-travel to the closest matching access in that direction, and a status line appears underneath reporting where the trace landed.
 - The button carrying the TTD Memory sidebar's icon lists *every* access to the target instead of stepping to one, by handing the query to the [TTD Memory widget](#ttd-memory-widget) and opening it. This is the same as the `TTD Memory Access` context menu items, and is likewise memory-only.
