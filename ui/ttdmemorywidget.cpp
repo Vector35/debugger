@@ -389,6 +389,8 @@ void TTDMemoryQueryWidget::updateColumnVisibility()
 
 void TTDMemoryQueryWidget::performQuery()
 {
+	if (m_queryInProgress)
+		return;
 	if (!m_controller || !m_controller->IsTTD())
 	{
 		QMessageBox::warning(this, "TTD Not Available", 
@@ -458,13 +460,18 @@ void TTDMemoryQueryWidget::performQuery()
 		return;
 	}
 	
+	if (!m_controller->IsConnected() || m_controller->GetTargetStatus() != DebugAdapterPausedStatus)
+		return;
+
+	m_queryInProgress = true;
 	// Clear previous results
 	clearResults();
 	updateStatus("Executing TTD memory query...");
 	
 	// Disable query button during execution
 	m_queryButton->setEnabled(false);
-	QApplication::processEvents();
+	// Do not pump events here: Show All delegates to this widget, and processing input
+	// would allow another navigation or memory query to start before this one finishes.
 	
 	try
 	{
@@ -544,6 +551,7 @@ void TTDMemoryQueryWidget::performQuery()
 		updateStatus("Query failed");
 	}
 	
+	m_queryInProgress = false;
 	// Re-enable query button
 	m_queryButton->setEnabled(true);
 }

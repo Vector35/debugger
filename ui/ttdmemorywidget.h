@@ -83,6 +83,7 @@ public:
 private:
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
+	bool m_queryInProgress = false;
 	
 	// Input controls
 	QLineEdit* m_startAddressEdit;
