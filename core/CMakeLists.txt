@@ -100,16 +100,21 @@ set_target_properties(debuggercore PROPERTIES
 
 target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)
 
-# LLVM_VERSION drives the versioned lldb library names below (e.g. liblldb.so.${LLVM_VERSION}),
+# BN_LLVM_VERSION drives the versioned lldb library names below,
 # so it must be defined on every path -- including when LLDB_PATH is supplied directly via the
 # environment (as the CI build does after extracting the lldb artifact). Keep it out of the
 # LLDB_PATH-resolution branches.
 set(LLVM_VERSION 22.1.8 CACHE STRING "Version of LLVM to use")
+set(LLVM_VERSION_SUFFIX "-binaryninja" CACHE STRING "LLVM shared library version suffix")
+# LLVM's package config overwrites LLVM_VERSION with its suffixed package version.
+if(NOT DEFINED BN_LLVM_VERSION)
+	set(BN_LLVM_VERSION "${LLVM_VERSION}")
+endif()
 if(ASAN)
 	# Require asan clang to prevent spurious use-after-poison reports
-	set(LLVM_VERSION_DIR "${LLVM_VERSION}-asan")
+	set(LLVM_VERSION_DIR "${BN_LLVM_VERSION}-asan")
 else()
-	set(LLVM_VERSION_DIR "${LLVM_VERSION}")
+	set(LLVM_VERSION_DIR "${BN_LLVM_VERSION}")
 endif()
 
 if(DEFINED ENV{LLDB_PATH})
@@ -132,7 +137,7 @@ endif()
 message(STATUS "lldb: using install at ${LLDB_PATH}")
 
 if (APPLE)
-	find_library(lib_lldb NAMES lldb.${LLVM_VERSION} lldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
+	find_library(lib_lldb NAMES lldb.${BN_LLVM_VERSION}${LLVM_VERSION_SUFFIX} lldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path/lldb/lib")
@@ -167,20 +172,20 @@ if (APPLE)
 		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 	)
 	file(
-		COPY ${LLDB_PATH}/lib/liblldb.${LLVM_VERSION}.dylib
+		COPY ${LLDB_PATH}/lib/liblldb.${BN_LLVM_VERSION}${LLVM_VERSION_SUFFIX}.dylib
 		DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
 		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 	)
 elseif (UNIX)
-	string(REGEX MATCH "^[0-9]+\.[0-9]+" LLVM_VERSION_MAJOR_MINOR ${LLVM_VERSION})
-	if(NOT EXISTS ${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION_MAJOR_MINOR})
+	string(REGEX MATCH "^[0-9]+\.[0-9]+" LLVM_VERSION_MAJOR_MINOR ${BN_LLVM_VERSION})
+	if(NOT EXISTS ${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION_MAJOR_MINOR}${LLVM_VERSION_SUFFIX})
 		file(
 			COPY_FILE
-				${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION}
-				${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION_MAJOR_MINOR}
+				${LLDB_PATH}/lib/liblldb.so.${BN_LLVM_VERSION}${LLVM_VERSION_SUFFIX}
+				${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION_MAJOR_MINOR}${LLVM_VERSION_SUFFIX}
 		)
 	endif()
-	find_library(lib_lldb NAMES liblldb.so.${LLVM_VERSION_MAJOR_MINOR} lldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
+	find_library(lib_lldb NAMES liblldb.so.${LLVM_VERSION_MAJOR_MINOR}${LLVM_VERSION_SUFFIX} lldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/lldb/lib")
@@ -197,7 +202,7 @@ elseif (UNIX)
 	)
 	file(
 		COPY
-			${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION_MAJOR_MINOR}
+			${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION_MAJOR_MINOR}${LLVM_VERSION_SUFFIX}
 		DESTINATION
 			${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
 		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
@@ -206,14 +211,30 @@ else()
 	find_library(lib_lldb NAMES liblldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
+
+	set(LLDB_RUNTIME_FILES
+		"${LLDB_PATH}/bin/Vector35.LLVM.manifest"
+		"${LLDB_PATH}/bin/liblldb.dll")
+	if(BN_INTERNAL_BUILD)
+		# Internal builds place these next to binaryninja.exe
+		get_filename_component(LLDB_RUNTIME_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}" DIRECTORY)
+	else()
+		set(LLDB_RUNTIME_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb")
+		# Standalone builds need to copy LLVM too
+		string(REGEX MATCH "^[0-9]+" LLVM_VERSION_MAJOR "${BN_LLVM_VERSION}")
+		list(APPEND LLDB_RUNTIME_FILES "${LLDB_PATH}/bin/LLVM-${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX}.dll")
+	endif()
 	add_custom_command(TARGET debuggercore PRE_LINK
 			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${LIBRARY_OUTPUT_DIRECTORY_PATH}
-			)
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LLDB_RUNTIME_FILES} "${LLDB_RUNTIME_DIRECTORY}"
+			VERBATIM)
+	foreach(LLDB_TOOL lldb lldb-server lldb-argdumper)
+		add_custom_command(TARGET debuggercore PRE_LINK
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LLDB_PATH}/bin/${LLDB_TOOL}.exe" "${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/${LLDB_TOOL}.exe"
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LLDB_PATH}/bin/${LLDB_TOOL}.exe.config" "${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/${LLDB_TOOL}.exe.config"
+				VERBATIM)
+	endforeach()
 endif()
 
 # FlatBuffers for the x2win RPC protocol (protocol/x2win.fbs), generated once at the top-level

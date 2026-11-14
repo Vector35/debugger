@@ -43,12 +43,15 @@ make
 
 While the code is compiling, it's a good time to check the [Binary Ninja slack](https://slack.binary.ninja) for any updates!
 
-The build artifacts will be in the folder `out`. You should find two files `libdebuggercore` and `libdebuggerui`, and two folders `debugger` (that contains the Python code) and `lldb`. 
+The build artifacts will be in the folder `out/plugins`. You should find two files `libdebuggercore` and `libdebuggerui`, and two folders `debugger` (that contains the Python code) and `lldb`.
+
+On Windows, the `lldb` folder also contains `liblldb.dll`, `LLVM-<major>.dll`, and
+the runtime manifest/config files. Keep these files together when copying the plugins.
 
 - Run the debugger
   - Open Binary Ninja, disable the setting `corePlugins.debugger` so the debugger that comes with Binary Ninja is not loaded
   - Close Binary Ninja
-  - Copy everything in the `out` folder to the user plugin folder - `cp -r out/plugins/* ~/.binaryninja/plugins/`
+  - Copy everything in the `out/plugins` folder to the user plugin folder - `cp -r out/plugins/* ~/.binaryninja/plugins/`
   - Set the environment variable `BN_STANDALONE_DEBUGGER=1`
   - Launch BinaryNinja
 
