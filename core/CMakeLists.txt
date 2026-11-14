@@ -206,14 +206,30 @@ else()
 	find_library(lib_lldb NAMES liblldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
+
+	set(LLDB_RUNTIME_FILES
+		"${LLDB_PATH}/bin/Vector35.LLVM.manifest"
+		"${LLDB_PATH}/bin/liblldb.dll")
+	if(BN_INTERNAL_BUILD)
+		# Internal builds place these next to binaryninja.exe
+		get_filename_component(LLDB_RUNTIME_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}" DIRECTORY)
+	else()
+		set(LLDB_RUNTIME_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb")
+		# Standalone builds need to copy LLVM too
+		string(REGEX MATCH "^[0-9]+" LLVM_VERSION_MAJOR "${LLVM_VERSION}")
+		list(APPEND LLDB_RUNTIME_FILES "${LLDB_PATH}/bin/LLVM-${LLVM_VERSION_MAJOR}.dll")
+	endif()
 	add_custom_command(TARGET debuggercore PRE_LINK
 			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${LIBRARY_OUTPUT_DIRECTORY_PATH}
-			)
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LLDB_RUNTIME_FILES} "${LLDB_RUNTIME_DIRECTORY}"
+			VERBATIM)
+	foreach(LLDB_TOOL lldb lldb-server lldb-argdumper)
+		add_custom_command(TARGET debuggercore PRE_LINK
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LLDB_PATH}/bin/${LLDB_TOOL}.exe" "${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/${LLDB_TOOL}.exe"
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LLDB_PATH}/bin/${LLDB_TOOL}.exe.config" "${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/${LLDB_TOOL}.exe.config"
+				VERBATIM)
+	endforeach()
 endif()
 
 # FlatBuffers for the x2win RPC protocol (protocol/x2win.fbs), generated once at the top-level

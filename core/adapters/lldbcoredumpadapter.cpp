@@ -75,16 +75,20 @@ DebugAdapter* LldbCoreDumpAdapterType::Create(BinaryNinja::BinaryView* data)
 	// and load it by ourselves. This is because the delay load only search for the directory that the binaryninja.exe
 	// is in, and it does not search for the directory where the user/default plugin is in, which is exactly where
 	// the liblldb.dll is located.
+	// Standalone builds bundle LLDB with its helpers in the user plugin directory.
+	// Internal builds place it beside the Binary Ninja executable.
 	// As a note, the reason for us to apply delay load on liblldb.dll is that if we load it early, it will also load
 	// the system's default dbgeng dlls, which does not work for our dbgeng adapter.
 	std::string lldbDir;
 	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-		lldbDir = GetUserPluginDirectory();
+		lldbDir = GetUserPluginDirectory() + "\\lldb";
 	else
-		lldbDir = GetBundledPluginDirectory();
+		lldbDir = GetInstallDirectory();
 
 	auto lldbPath = lldbDir + '\\' + "liblldb.dll";
-	auto module = LoadLibraryA(lldbPath.c_str());
+	auto widePath = std::filesystem::u8path(lldbPath).wstring();
+	auto module = LoadLibraryExW(widePath.c_str(), nullptr,
+		LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 	if (module == NULL)
 		throw std::runtime_error(std::string("fail to load ") + lldbPath);
 #endif
