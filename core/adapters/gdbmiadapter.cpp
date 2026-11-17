@@ -937,14 +937,14 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
     m_mi->SendCommand("-gdb-set confirm off");
     m_mi->SendCommand("-enable-frame-filters");
     if (!symbolFile.empty())
-        m_mi->SendCommand("-file-symbol-file " + QuoteMiString(symbolFile));
+        m_mi->SendCommand("-interpreter-exec console "
+            + QuoteMiString("add-symbol-file " + QuoteConsoleArgument(symbolFile)));
 
     m_mi->SendCommand("-file-exec-file " + QuoteMiString(inputFile));
 	// TODO: we should offer an option on whether or not to connect in extended mode
     std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
 
-    // Remote initialization can download loader and shared-library symbols.
-    auto result = m_mi->SendCommand(connectCmd, 30000);
+    auto result = m_mi->SendCommand(connectCmd, 1000);
 	m_connected = (result.command == "connected");
 	if (!m_connected)
 	{
@@ -1381,8 +1381,8 @@ bool GdbMiAdapter::SetActiveThread(const DebugThread& thread) { return SetActive
 DebugBreakpoint GdbMiAdapter::AddBreakpoint(std::uintptr_t address, unsigned long breakpoint_type) {
     if (!m_mi) { return {}; }
 
-    LogDebug("-break-insert *0x%" PRIx64, (uint64_t)address);
-    auto result = m_mi->SendCommand(fmt::format("-break-insert *0x{:x}", address));
+    LogDebug("-break-insert -h *0x%" PRIx64, (uint64_t)address);
+    auto result = m_mi->SendCommand(fmt::format("-break-insert -h *0x{:x}", address));
     if (result.command == "done") {
         DebuggerEvent evt;
 		evt.type = BackendMessageEventType;
