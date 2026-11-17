@@ -862,12 +862,30 @@ bool GdbMiAdapter::DetectTargetArchitecture(bool remoteSession)
 	return true;
 }
 
+static std::string ResolveGdbPath(const std::string& configuredPath)
+{
+	if (!configuredPath.empty())
+		return configuredPath;
+
+	const bool standalone = getenv("BN_STANDALONE_DEBUGGER") != nullptr;
+	const std::filesystem::path root = standalone ? GetUserPluginDirectory() : GetBundledPluginDirectory();
+#ifdef __APPLE__
+	if (!standalone)
+		return (root / "gdb").string();
+#endif
+#ifdef WIN32
+	return (root / "gdb" / "bin" / "gdb.exe").string();
+#else
+	return (root / "gdb" / "bin" / "gdb").string();
+#endif
+}
+
 bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 {
     auto settings = GetAdapterSettings();
     BNSettingsScope scope = SettingsResourceScope;
     auto data = GetData();
-    auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
+    auto gdbPath = ResolveGdbPath(settings->Get<std::string>("gdb.path", data));
     scope = SettingsResourceScope;
     auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
     scope = SettingsResourceScope;
@@ -966,7 +984,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 	auto settings = GetAdapterSettings();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
-	auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
+	auto gdbPath = ResolveGdbPath(settings->Get<std::string>("gdb.path", data));
 	scope = SettingsResourceScope;
 	auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
 	scope = SettingsResourceScope;
@@ -2122,31 +2140,6 @@ void GdbMiAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("launch.executablePath", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
-
-	scope = SettingsResourceScope;
-	adapterSettings->Get<std::string>("gdb.path", data, &scope);
-	if (scope != SettingsResourceScope)
-	{
-		std::filesystem::path pluginRoot;
-		if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-			pluginRoot = GetUserPluginDirectory();
-		else
-		{
-			pluginRoot = GetBundledPluginDirectory();
-#ifdef __APPLE__
-			const auto executablePath = pluginRoot / "gdb";
-			adapterSettings->Set("gdb.path", executablePath.string(), data, SettingsResourceScope);
-			return;
-#endif
-		}
-#ifdef WIN32
-		const auto executable = "gdb.exe";
-#else
-		const auto executable = "gdb";
-#endif
-		adapterSettings->Set("gdb.path", (pluginRoot / "gdb" / "bin" / executable).string(), data,
-			SettingsResourceScope);
-	}
 
 }
 
