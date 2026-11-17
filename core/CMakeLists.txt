@@ -149,22 +149,38 @@ if(GDB_PATH)
 		message(FATAL_ERROR "GDB_PATH does not contain bin/gdb or bin/gdb.exe: ${GDB_PATH}")
 	endif()
 	message(STATUS "gdb: bundling install from ${GDB_PATH}")
-	set(GDB_BUNDLE_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb")
+	file(GLOB_RECURSE GDB_INPUTS CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GDB_PATH}/*")
+	set(GDB_OUTPUTS)
 	if(APPLE AND BN_INTERNAL_BUILD)
 		get_filename_component(GDB_CONTENTS_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/../.." ABSOLUTE)
-		add_custom_target(bundle_gdb
+		set(GDB_COPY_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/BundleGdbMac.cmake")
+		list(APPEND GDB_OUTPUTS "${GDB_CONTENTS_DIRECTORY}/MacOS/plugins/gdb")
+		foreach(input IN LISTS GDB_INPUTS)
+			file(RELATIVE_PATH relative "${GDB_PATH}" "${input}")
+			if(relative MATCHES "^share/gdb/(.+)$")
+				list(APPEND GDB_OUTPUTS "${GDB_CONTENTS_DIRECTORY}/Resources/gdb/${CMAKE_MATCH_1}")
+			elseif(relative STREQUAL "COPYING" OR relative STREQUAL "build-manifest.json")
+				list(APPEND GDB_OUTPUTS "${GDB_CONTENTS_DIRECTORY}/Resources/gdb/${relative}")
+			endif()
+		endforeach()
+		add_custom_command(OUTPUT ${GDB_OUTPUTS}
 			COMMAND ${CMAKE_COMMAND} "-DGDB_SOURCE=${GDB_PATH}"
-				"-DCONTENTS=${GDB_CONTENTS_DIRECTORY}"
-				-P "${CMAKE_CURRENT_SOURCE_DIR}/BundleGdbMac.cmake"
+				"-DCONTENTS=${GDB_CONTENTS_DIRECTORY}" -P "${GDB_COPY_SCRIPT}"
+			COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${GDB_OUTPUTS}
+			DEPENDS ${GDB_INPUTS} "${GDB_COPY_SCRIPT}"
 			COMMENT "Bundling macOS GDB code and resources" VERBATIM)
 	else()
-		add_custom_target(bundle_gdb
-			COMMAND ${CMAKE_COMMAND} -E copy_directory
-				"${GDB_PATH}" "${GDB_BUNDLE_DIRECTORY}"
-			COMMENT "Copying bundled GDB installation"
-			VERBATIM
-		)
+		set(GDB_BUNDLE_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb")
+		foreach(input IN LISTS GDB_INPUTS)
+			file(RELATIVE_PATH relative "${GDB_PATH}" "${input}")
+			list(APPEND GDB_OUTPUTS "${GDB_BUNDLE_DIRECTORY}/${relative}")
+		endforeach()
+		add_custom_command(OUTPUT ${GDB_OUTPUTS}
+			COMMAND ${CMAKE_COMMAND} -E copy_directory "${GDB_PATH}" "${GDB_BUNDLE_DIRECTORY}"
+			DEPENDS ${GDB_INPUTS}
+			COMMENT "Copying bundled GDB installation" VERBATIM)
 	endif()
+	add_custom_target(bundle_gdb DEPENDS ${GDB_OUTPUTS})
 	add_dependencies(debuggercore bundle_gdb)
 else()
 	message(STATUS "gdb: no bundled install configured")
