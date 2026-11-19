@@ -350,12 +350,12 @@ int CmdInstall(const std::string& installPath, const std::string& version, Outpu
      * The install directory may not exist yet if installation failed early (e.g. the
      * signature check runs before any files are extracted), so create it first -
      * otherwise the UI cannot read the specific error and falls back to a generic one. */
-    {
+    if (!targetPath.empty()) {
         std::error_code ec;
-        std::filesystem::create_directories(targetPath, ec);
+        const std::filesystem::path installDir(targetPath);
+        std::filesystem::create_directories(installDir, ec);
 
-        std::string resultPath = targetPath + "\\install_result.json";
-        std::ofstream resultFile(resultPath);
+        std::ofstream resultFile(installDir / "install_result.json");
         if (resultFile.is_open()) {
             resultFile << "{\"success\":" << (result.success ? "true" : "false");
             if (!result.errorMessage.empty()) {

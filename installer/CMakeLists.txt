@@ -14,14 +14,14 @@ endif()
 
 set(INSTALLER_LIB_SOURCES
     http_downloader.cpp
-    zip_extractor.cpp
+    msix_extractor.cpp
     windbg_installer.cpp
     signature_verifier.cpp
 )
 
 set(INSTALLER_LIB_HEADERS
     http_downloader.h
-    zip_extractor.h
+    msix_extractor.h
     windbg_installer.h
     windbg_version.h
     signature_verifier.h

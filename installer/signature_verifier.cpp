@@ -29,20 +29,6 @@ void Log(LogCallback logCallback, int level, const std::string& message) {
     }
 }
 
-/* Convert an ANSI (CP_ACP) path - as produced by the GetTempPathA-based helpers - to UTF-16 */
-std::wstring ToWide(const std::string& s) {
-    if (s.empty()) {
-        return std::wstring();
-    }
-    int len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), (int)s.size(), nullptr, 0);
-    if (len <= 0) {
-        return std::wstring();
-    }
-    std::wstring w(len, L'\0');
-    MultiByteToWideChar(CP_ACP, 0, s.c_str(), (int)s.size(), &w[0], len);
-    return w;
-}
-
 /* Format a Win32/WinVerifyTrust status code as a short hex string */
 std::string StatusToHex(LONG status) {
     char buf[16];
@@ -196,21 +182,14 @@ cleanup:
 
 } // anonymous namespace
 
-SignatureResult VerifyMicrosoftSignature(const std::string& filePath, LogCallback logCallback) {
+SignatureResult VerifyMicrosoftSignature(const std::filesystem::path& filePath, LogCallback logCallback) {
     SignatureResult result;
 
-    std::wstring widePath = ToWide(filePath);
-    if (widePath.empty()) {
-        result.errorMessage = "invalid file path for signature verification";
-        Log(logCallback, LOG_ERROR, result.errorMessage);
-        return result;
-    }
-
-    Log(logCallback, LOG_INFO, "Verifying digital signature of: " + filePath);
+    Log(logCallback, LOG_INFO, "Verifying digital signature of the downloaded bundle");
 
     /* Step 1: signature is present, intact, and chains to a trusted root */
     std::string trustErr;
-    if (!VerifyTrust(widePath, trustErr)) {
+    if (!VerifyTrust(filePath.native(), trustErr)) {
         result.errorMessage = "Signature verification failed - " + trustErr;
         Log(logCallback, LOG_ERROR, result.errorMessage);
         return result;
@@ -218,7 +197,7 @@ SignatureResult VerifyMicrosoftSignature(const std::string& filePath, LogCallbac
 
     /* Step 2: signer is Microsoft */
     std::string signerErr;
-    if (!VerifySignerIsMicrosoft(widePath, result.signerName, signerErr)) {
+    if (!VerifySignerIsMicrosoft(filePath.native(), result.signerName, signerErr)) {
         result.errorMessage = "Signature verification failed - " + signerErr;
         Log(logCallback, LOG_ERROR, result.errorMessage);
         return result;

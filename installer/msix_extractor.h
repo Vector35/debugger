@@ -9,6 +9,7 @@
 
 #ifdef _WIN32
 
+#include <filesystem>
 #include <string>
 #include <functional>
 
@@ -43,9 +44,9 @@ using LogCallback = std::function<void(int level, const std::string& message)>;
  * @return true if extraction was successful, false otherwise
  */
 bool ExtractInnerPackageToDir(
-    const std::string& bundlePath,
+    const std::filesystem::path& bundlePath,
     const std::string& innerName,
-    const std::string& destDir,
+    const std::filesystem::path& destDir,
     ExtractionProgressCallback progressCallback = nullptr,
     LogCallback logCallback = nullptr
 );

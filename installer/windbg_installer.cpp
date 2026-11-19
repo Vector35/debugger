@@ -10,7 +10,7 @@
 #include "windbg_installer.h"
 #include "windbg_version.h"
 #include "http_downloader.h"
-#include "zip_extractor.h"
+#include "msix_extractor.h"
 #include "signature_verifier.h"
 #include <windows.h>
 #include <shlobj.h>
@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <vector>
 
 #pragma comment(lib, "version.lib")
@@ -64,29 +65,34 @@ void ReportProgress(ProgressCallback progressCallback, const std::string& step, 
 }
 
 /* Get Binary Ninja user directory */
-std::string GetUserDirectory() {
+fs::path GetUserDirectory() {
     char path[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, 0, path))) {
-        return std::string(path) + "\\Binary Ninja";
+        return fs::path(path) / "Binary Ninja";
     }
-    return "";
+    return {};
 }
 
 /* Generate a unique temporary file path */
-std::string GetTempFilePath(const std::string& extension) {
-    char tempPath[MAX_PATH];
-    GetTempPathA(MAX_PATH, tempPath);
+fs::path GetTempBundlePath() {
+    wchar_t tempPath[MAX_PATH];
+    const DWORD length = GetTempPathW(MAX_PATH, tempPath);
+    if (length == 0 || length >= MAX_PATH) {
+        throw std::runtime_error("Could not determine the temporary directory");
+    }
 
     /* Generate a unique filename using GUID */
     GUID guid;
-    CoCreateGuid(&guid);
+    if (FAILED(CoCreateGuid(&guid))) {
+        throw std::runtime_error("Could not generate a temporary bundle filename");
+    }
     char guidStr[40];
     sprintf_s(guidStr, sizeof(guidStr), "{%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
         guid.Data1, guid.Data2, guid.Data3,
         guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
         guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
 
-    return std::string(tempPath) + "windbg_" + guidStr + extension;
+    return fs::path(tempPath) / (std::string("windbg_") + guidStr + ".msixbundle");
 }
 
 /* Build the MSIX bundle URL for a specific WinDbg version.
@@ -106,7 +112,7 @@ void PrintSettingsInfo(const std::string& dbgEngPath, LogCallback logCallback) {
 }
 
 /* Cleanup temporary files */
-void CleanupTempFiles(const std::vector<std::string>& files, LogCallback logCallback) {
+void CleanupTempFiles(const std::vector<fs::path>& files, LogCallback logCallback) {
     for (const auto& file : files) {
         std::error_code ec;
         if (fs::is_directory(file)) {
@@ -115,29 +121,32 @@ void CleanupTempFiles(const std::vector<std::string>& files, LogCallback logCall
             fs::remove(file, ec);
         }
         if (!ec) {
-            Log(logCallback, LOG_DEBUG, "Cleaned up: " + file);
+            Log(logCallback, LOG_DEBUG, "Cleaned up temporary bundle");
         }
     }
+}
+
+bool HasRequiredFiles(const fs::path& path) {
+    for (const auto& file : kRequiredFiles) {
+        if (!fs::exists(path / file)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // anonymous namespace
 
 std::string GetDefaultInstallPath() {
-    std::string userDir = GetUserDirectory();
+    const fs::path userDir = GetUserDirectory();
     if (userDir.empty()) {
         return "";
     }
-    return userDir + "\\windbg";
+    return (userDir / "windbg").string();
 }
 
 bool CheckInstallation(const std::string& path) {
-    for (const auto& file : kRequiredFiles) {
-        fs::path fullPath = fs::path(path) / file;
-        if (!fs::exists(fullPath)) {
-            return false;
-        }
-    }
-    return true;
+    return HasRequiredFiles(fs::path(path));
 }
 
 bool CheckInstallOk(const std::string& path) {
@@ -147,7 +156,7 @@ bool CheckInstallOk(const std::string& path) {
 InstallResult Install(const InstallConfig& config) {
     LogCallback logCallback = config.onLog;
     ProgressCallback progressCallback = config.onProgress;
-    std::vector<std::string> tempFiles;
+    std::vector<fs::path> tempFiles;
 
     try {
         Log(logCallback, LOG_INFO, "Starting WinDbg/TTD installation");
@@ -155,16 +164,14 @@ InstallResult Install(const InstallConfig& config) {
         ReportProgress(progressCallback, "Initializing installation...", 0);
 
         /* Determine install path */
-        std::string installTarget = config.installPath;
-        if (installTarget.empty()) {
-            installTarget = GetDefaultInstallPath();
-            if (installTarget.empty()) {
-                std::string error = "Could not determine installation path";
-                Log(logCallback, LOG_ERROR, error);
-                return InstallResult(false, error);
-            }
+        const std::string installPath = config.installPath.empty() ? GetDefaultInstallPath() : config.installPath;
+        if (installPath.empty()) {
+            std::string error = "Could not determine installation path";
+            Log(logCallback, LOG_ERROR, error);
+            return InstallResult(false, error);
         }
-        Log(logCallback, LOG_INFO, "Installation target: " + installTarget);
+        const fs::path installTarget(installPath);
+        Log(logCallback, LOG_INFO, "Installation target: " + installPath);
 
         /* Step 1: Determine which version to install and where to download it from.
          * We install a specific version rather than whatever is newest, see windbg_version.h */
@@ -178,7 +185,7 @@ InstallResult Install(const InstallConfig& config) {
 
         /* Note: the extension must be a recognized MSIX/APPX extension (not .zip) so that
          * WinVerifyTrust engages the AppX signature provider during Step 2.5 verification. */
-        std::string msixPath = GetTempFilePath(".msixbundle");
+        const fs::path msixPath = GetTempBundlePath();
         tempFiles.push_back(msixPath);
 
         auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
@@ -228,19 +235,18 @@ InstallResult Install(const InstallConfig& config) {
         /* Step 5: Verify installation */
         ReportProgress(progressCallback, "Verifying installation...", 0);
 
-        if (!CheckInstallation(installTarget)) {
+        if (!HasRequiredFiles(installTarget)) {
             std::string error = "Installation verification failed - required files missing";
             Log(logCallback, LOG_ERROR, error);
             CleanupTempFiles(tempFiles, logCallback);
             return InstallResult(false, error);
         }
 
-        Log(logCallback, LOG_INFO, "WinDbg/TTD installed to: " + installTarget);
+        Log(logCallback, LOG_INFO, "WinDbg/TTD installed to: " + installPath);
 
         /* Step 5b: Write version marker file */
         {
-            std::string versionFilePath = installTarget + "\\installed_version.txt";
-            std::ofstream versionFile(versionFilePath);
+            std::ofstream versionFile(installTarget / "installed_version.txt");
             if (versionFile.is_open()) {
                 versionFile << version;
                 versionFile.close();
@@ -252,8 +258,7 @@ InstallResult Install(const InstallConfig& config) {
 
         /* Step 6: Print settings info (actual settings configuration is done by UI) */
         if (config.updateSettings) {
-            std::string x64dbgEngPath = installTarget + "\\amd64";
-            PrintSettingsInfo(x64dbgEngPath, logCallback);
+            PrintSettingsInfo((installTarget / "amd64").string(), logCallback);
         }
 
         /* Cleanup */
@@ -295,17 +300,17 @@ bool InstallWinDbg(LegacyProgressCallback progressCallback) {
 VersionInfo GetInstalledVersion(const std::string& installPath) {
     VersionInfo info;
 
-    std::string path = installPath.empty() ? GetDefaultInstallPath() : installPath;
-    if (path.empty()) {
+    const std::string target = installPath.empty() ? GetDefaultInstallPath() : installPath;
+    if (target.empty()) {
         return info;  /* isInstalled = false, version = "" */
     }
 
     /* Store the path for reference */
-    info.installPath = path;
+    info.installPath = target;
+    const fs::path path(target);
 
     /* Check if installation exists */
-    std::string dllPath = path + "\\amd64\\dbgeng.dll";
-    if (!fs::exists(dllPath)) {
+    if (!fs::exists(path / "amd64" / "dbgeng.dll")) {
         return info;  /* isInstalled = false, version = "" */
     }
 
@@ -313,8 +318,7 @@ VersionInfo GetInstalledVersion(const std::string& installPath) {
     info.isInstalled = true;
 
     /* Read version from marker file (written during installation) */
-    std::string versionFilePath = path + "\\installed_version.txt";
-    std::ifstream versionFile(versionFilePath);
+    std::ifstream versionFile(path / "installed_version.txt");
     if (versionFile.is_open()) {
         std::getline(versionFile, info.version);
         versionFile.close();

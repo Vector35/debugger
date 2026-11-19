@@ -7,7 +7,7 @@
 
 #ifdef _WIN32
 
-#include "zip_extractor.h"
+#include "msix_extractor.h"
 #include "windbg_installer.h"
 #include <windows.h>
 #include <shlwapi.h>
@@ -233,18 +233,17 @@ bool WritePayloadFile(IAppxFile* file, const fs::path& destinationRoot,
 } // anonymous namespace
 
 bool ExtractInnerPackageToDir(
-    const std::string& bundlePath,
+    const std::filesystem::path& bundlePath,
     const std::string& innerName,
-    const std::string& destDir,
+    const std::filesystem::path& destDir,
     ExtractionProgressCallback progressCallback,
     LogCallback logCallback)
 {
-    Log(logCallback, LOG_INFO, "Extracting '" + innerName + "' contents from " + bundlePath);
+    Log(logCallback, LOG_INFO, "Extracting '" + innerName + "' contents from the downloaded bundle");
 
-    std::wstring wideBundlePath;
     std::wstring wideInnerName;
-    if (!Utf8ToWide(bundlePath, wideBundlePath) || !Utf8ToWide(innerName, wideInnerName)) {
-        Log(logCallback, LOG_ERROR, "Bundle path or inner package name is not valid UTF-8");
+    if (!Utf8ToWide(innerName, wideInnerName)) {
+        Log(logCallback, LOG_ERROR, "Inner package name is not valid UTF-8");
         return false;
     }
 
@@ -256,7 +255,7 @@ bool ExtractInnerPackageToDir(
 
     ComPtr<IStream> bundleStream;
     HRESULT result = SHCreateStreamOnFileEx(
-        wideBundlePath.c_str(), STGM_READ | STGM_SHARE_DENY_WRITE,
+        bundlePath.c_str(), STGM_READ | STGM_SHARE_DENY_WRITE,
         FILE_ATTRIBUTE_NORMAL, FALSE, nullptr, bundleStream.Put());
     if (FAILED(result)) {
         Log(logCallback, LOG_ERROR, "Failed to open bundle: " + FormatHResult(result));
@@ -332,18 +331,17 @@ bool ExtractInnerPackageToDir(
         return false;
     }
 
-    fs::path destinationRoot(destDir);
     std::error_code error;
-    fs::create_directories(destinationRoot, error);
+    fs::create_directories(destDir, error);
     if (error) {
-        Log(logCallback, LOG_ERROR, "Failed to create installation directory: " + destDir);
+        Log(logCallback, LOG_ERROR, "Failed to create installation directory: " + destDir.string());
         return false;
     }
 
     int extracted = 0;
     for (auto& payload : payloads) {
         std::string name;
-        if (!WritePayloadFile(payload.Get(), destinationRoot, name, logCallback)) {
+        if (!WritePayloadFile(payload.Get(), destDir, name, logCallback)) {
             return false;
         }
 
@@ -359,7 +357,7 @@ bool ExtractInnerPackageToDir(
     }
 
     Log(logCallback, LOG_INFO, "Successfully extracted " + std::to_string(extracted) +
-        " files to " + destDir);
+        " files to " + destDir.string());
     return true;
 }
 

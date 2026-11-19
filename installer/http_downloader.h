@@ -9,6 +9,7 @@
 
 #ifdef _WIN32
 
+#include <filesystem>
 #include <string>
 #include <functional>
 #include <cstdint>
@@ -39,7 +40,7 @@ using LogCallback = std::function<void(int level, const std::string& message)>;
  */
 bool DownloadFileWithProgress(
     const std::string& url,
-    const std::string& localPath,
+    const std::filesystem::path& localPath,
     DownloadProgressCallback progressCallback = nullptr,
     LogCallback logCallback = nullptr
 );
