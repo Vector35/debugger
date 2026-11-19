@@ -131,9 +131,12 @@ private:
 	void setupUIActions();
 	void updateColumnVisibility();
 	bool canCopy();
+	// The raw address the given cell navigates to (from an Address/PC column), or false if
+	// the cell is not an address cell.
+	bool addressForCell(int row, int column, uint64_t& addr);
 	void filterAndDisplayEvents();
 	void filterAndDisplaySpecializedEvents(); // For specialized widget types
-	
+
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 	
 public:
@@ -152,6 +155,7 @@ public Q_SLOTS:
 private Q_SLOTS:
 	void performQuery();
 	void onCellDoubleClicked(int row, int column);
+	void navigateInCurrentPane();
 	void showColumnVisibilityDialog();
 	void resetColumnsToDefault();
 	void showContextMenu(const QPoint& position);
