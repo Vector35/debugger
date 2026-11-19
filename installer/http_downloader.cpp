@@ -83,7 +83,7 @@ std::string WideToNarrow(const std::wstring& wide) {
 
 bool DownloadFileWithProgress(
     const std::string& url,
-    const std::string& localPath,
+    const std::filesystem::path& localPath,
     DownloadProgressCallback progressCallback,
     LogCallback logCallback)
 {
@@ -216,7 +216,7 @@ bool DownloadFileWithProgress(
     /* Open output file */
     std::ofstream outFile(localPath, std::ios::binary);
     if (!outFile) {
-        Log(logCallback, LOG_ERROR, "Failed to create output file: " + localPath);
+        Log(logCallback, LOG_ERROR, "Failed to create temporary bundle file");
         WinHttpCloseHandle(hRequest);
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
@@ -276,7 +276,7 @@ bool DownloadFileWithProgress(
     WinHttpCloseHandle(hConnect);
     WinHttpCloseHandle(hSession);
 
-    Log(logCallback, LOG_INFO, "Downloaded " + std::to_string(totalRead) + " bytes to: " + localPath);
+    Log(logCallback, LOG_INFO, "Downloaded " + std::to_string(totalRead) + " bytes to the temporary bundle file");
 
     return true;
 }

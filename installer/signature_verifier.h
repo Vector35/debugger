@@ -9,6 +9,7 @@
 
 #ifdef _WIN32
 
+#include <filesystem>
 #include <string>
 #include <functional>
 #include <cstdint>
@@ -39,7 +40,7 @@ struct SignatureResult {
  * @param logCallback Optional callback for log messages
  * @return SignatureResult; check .valid before trusting the file
  */
-SignatureResult VerifyMicrosoftSignature(const std::string& filePath, LogCallback logCallback = nullptr);
+SignatureResult VerifyMicrosoftSignature(const std::filesystem::path& filePath, LogCallback logCallback = nullptr);
 
 } // namespace WinDbgInstaller
 
