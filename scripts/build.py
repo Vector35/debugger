@@ -19,6 +19,7 @@ if not ((3, 10) <= sys.version_info[:2] < (3, 15)):
     sys.exit('Debugger CI requires Python 3.10–3.14. Run the build with '
              '`uv run --locked --python 3.12 python scripts/build.py`.')
 
+from target_gdb_version import get_gdb_version
 from target_llvm_version import llvm_version, msvc_build, vs_version
 from test_process import run_tests
 
@@ -189,26 +190,17 @@ try:
 except StopIteration:
     pass
 
-try:
-    # Vector35/gdb-build publishes a consistent GDB/ tree for every host platform.
-    # Extract it beside the other external dependencies and let CMake copy it into the
-    # debugger plugin output.
-    gdb_artifact_candidates = list(external_artifacts_path.glob(
-        f'gdb_{normalized_platform()}_*.zip'))
-    gdb_artifact_path = next(iter(sorted(gdb_artifact_candidates, reverse=True)))
+gdb_artifact_path = external_artifacts_path / 'artifacts' / f'gdb_{normalized_platform()}_{get_gdb_version()}.zip'
+if gdb_artifact_path.is_file():
     gdb_root = external_artifacts_path / 'GDB'
     if gdb_root.exists():
         remove_dir(gdb_root)
-    extract_zip(gdb_artifact_path, external_artifacts_path)
-    legacy_gdb_root = external_artifacts_path / 'gdb'
-    if not gdb_root.exists() and legacy_gdb_root.is_dir():
-        legacy_gdb_root.rename(gdb_root)
-    if not (gdb_root / 'bin' / ('gdb.exe' if sys.platform.startswith('win') else 'gdb')).exists():
-        print(f'GDB artifact has an unexpected layout: {gdb_artifact_path}')
-        sys.exit(1)
+    executable = gdb_root / 'bin' / ('gdb.exe' if sys.platform.startswith('win') else 'gdb')
+    if not extract_zip(gdb_artifact_path, external_artifacts_path) or not executable.is_file():
+        sys.exit(f'Could not stage GDB from {gdb_artifact_path}')
     os.environ['GDB_PATH'] = str(gdb_root)
-except StopIteration:
-    print('No bundled GDB artifact found; building without a bundled GDB executable.')
+else:
+    print(f'GDB artifact not found: {gdb_artifact_path}')
 
 if not extract_zip(files[0], bn_dev_path):
     print('Failed to unzip binaryninja dev artifact')
