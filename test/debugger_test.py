@@ -597,6 +597,52 @@ class DebuggerAPI(unittest.TestCase):
         self.assertNotIn(ret, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         dbg.quit_and_wait()
 
+    def test_quit_while_running(self):
+        fpath = name_to_fpath('helloworld_thread', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        dbg.go()
+        time.sleep(1)
+        dbg.quit_and_wait()
+        self.assertFalse(dbg.connected)
+        self.assertFalse(dbg.running)
+
+    def test_no_events_after_quit(self):
+        fpath = name_to_fpath('helloworld_thread', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        events = []
+        dbg.register_event_callback(lambda event: events.append(event.type))
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        dbg.go()
+        time.sleep(1)
+        dbg.quit_and_wait()
+        count = len(events)
+        time.sleep(0.5)
+        self.assertEqual(len(events), count)
+        self.assertFalse(dbg.connected)
+
+    @unittest.skipIf(platform.system() == 'Windows', 'Windows runs one debugging engine per process')
+    def test_sessions_are_independent(self):
+        fpath = name_to_fpath('helloworld_thread', self.arch)
+        first = self.create_debugger(load(fpath))
+        second = self.create_debugger(load(fpath))
+        for dbg in (first, second):
+            self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            dbg.go()
+        time.sleep(1)
+
+        first.quit_and_wait()
+        self.assertFalse(first.connected)
+        self.assertTrue(second.connected)
+        self.assertTrue(second.running)
+
+        second.quit_and_wait()
+        self.assertFalse(second.connected)
+
     def test_assembly_code(self):
         if self.arch == 'x86_64':
             fpath = name_to_fpath('asmtest', 'x86_64')
