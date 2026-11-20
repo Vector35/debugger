@@ -2,15 +2,16 @@
 //
 // This replaces the freestyle "debugger-dev" multi-configuration job.
 //
-// Three prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
+// Four prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
 //   * Qt              (qt_<os>_*.zip,   from Qt/qt-main-pipeline)     -- commit-matched
 //   * LLDB            (lldb_<os>_*.zip, from LLVM/llvm-main-pipeline) -- commit-matched
 //   * binaryninja dev (binaryninja_<os>_*.zip)                       -- lastSuccessful (latest dev)
+//   * GDB             (gdb_<os>_*.zip, from debugger/gdb-build)     -- commit-matched
 //
 // Qt and LLDB are commit-matched by reusing the copyExternalArtifactsEx shared library, the
 // same one the binaryninja pipeline uses. binja feeds it commits from its llvm-build /
 // qt-build submodules; the debugger has no such submodules, so it passes the commits
-// explicitly (the qtCommit / llvmCommit params) read from scripts/target_llvm_version.py.
+// explicitly (the commit fields) read from scripts/target_llvm_version.py.
 //
 // Artifact filters come from the binaryninja repo: Qt/libclang filters from binja's
 // Jenkinsfile-dev copyExternalArtifactsEx call, the lldb_<os>_<ver>.zip name from
@@ -81,34 +82,41 @@ String readTarget(String name) {
 
 // copyArtifacts' lastSuccessful() can resolve to a build that Jenkins marked successful but
 // that published no artifacts (a known Jenkins issue), which makes the copy fail. Walk back
-// through successful builds and return a `specific()` selector for the most recent one that
-// actually has an artifact matching `filter`.
-def lastSuccessfulWithArtifacts(String projectName, String filter) {
+// through successful builds and return only the serializable build number; do not retain a live
+// Jenkins object across the later Pipeline `specific()` step.
+@NonCPS
+String lastSuccessfulBuildNumberWithArtifacts(String projectName, String filter) {
     def job = Jenkins.get().getItemByFullName(projectName)
     for (def build = job.lastSuccessfulBuild; build != null; build = build.previousSuccessfulBuild) {
         def artifacts = build.artifacts
         if (artifacts != null && artifacts.any { org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(filter, it.relativePath) }) {
-            return specific("${build.number}")
+            return "${build.number}"
         }
     }
-    error "No successful build with artifacts matching '${filter}' found in ${projectName}"
+    throw new IllegalStateException("No successful build with artifacts matching '${filter}' found in ${projectName}")
 }
 
-// Pull the three prebuilt dependencies into ./artifacts-extern for scripts/build.py.
 void copyExternalArtifacts(String os) {
-    // Qt + LLDB -- commit-matched via the shared library. The debugger has no llvm-build /
-    // qt-build submodules, so we pass the pinned commits explicitly (read from the text file)
-    // rather than letting copyExternalArtifactsEx derive them from submodule gitlinks.
-    // The library copies into artifacts-extern/<relativePath> (e.g. artifacts-extern/artifacts/
-    // qt_<os>_*.zip); build.py looks in both artifacts-extern/ and artifacts-extern/artifacts/.
-    copyExternalArtifactsEx(
-        qtJobName: "Qt/qt-main-pipeline",
-        qtArtifactFilter: "artifacts/qt_${os}_*.zip",
-        qtCommit: readTarget('qt_build_commit'),
-        llvmJobName: "LLVM/llvm-main-pipeline",
-        llvmArtifactFilter: "artifacts/lldb_${os}_*.zip",
-        llvmCommit: readTarget('llvm_build_commit'),
-    )
+    copyExternalArtifactsEx([
+        [
+            name: "Qt",
+            jobName: "Qt/qt-main-pipeline",
+            artifactFilter: "artifacts/qt_${os}_*.zip",
+            commit: readTarget('qt_build_commit'),
+        ],
+        [
+            name: "LLVM",
+            jobName: "LLVM/llvm-main-pipeline",
+            artifactFilter: "artifacts/lldb_${os}_*.zip",
+            commit: readTarget('llvm_build_commit'),
+        ],
+        [
+            name: "GDB",
+            jobName: "debugger/gdb-build",
+            artifactFilter: "artifacts/gdb_${os}_*.zip",
+            commit: readTarget('gdb_build_commit'),
+        ],
+    ])
 
     // Binary Ninja dev build -- the debugger builds against the latest dev, so this stays on
     // lastSuccessful (not commit-matched). binja publishes one zip per edition under
@@ -120,7 +128,7 @@ void copyExternalArtifacts(String os) {
     def binjaFilter = "artifacts/${os}/binaryninja_${os}_*_commercial.zip"
     copyArtifacts(
         projectName: 'binaryninja-dev-pipeline',
-        selector: lastSuccessfulWithArtifacts('binaryninja-dev-pipeline', binjaFilter),
+        selector: specific(lastSuccessfulBuildNumberWithArtifacts('binaryninja-dev-pipeline', binjaFilter)),
         filter: binjaFilter,
         flatten: true,
         fingerprintArtifacts: true,

@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cinttypes>
 #include <cctype>
+#include <filesystem>
 #include "../debuggercontroller.h"
 #include "../../cli/log.h"
 
@@ -861,12 +862,30 @@ bool GdbMiAdapter::DetectTargetArchitecture(bool remoteSession)
 	return true;
 }
 
+static std::string ResolveGdbPath(const std::string& configuredPath)
+{
+	if (!configuredPath.empty())
+		return configuredPath;
+
+	const bool standalone = getenv("BN_STANDALONE_DEBUGGER") != nullptr;
+	const std::filesystem::path root = standalone ? GetUserPluginDirectory() : GetBundledPluginDirectory();
+#ifdef __APPLE__
+	if (!standalone)
+		return (root / "gdb").string();
+#endif
+#ifdef WIN32
+	return (root / "gdb" / "bin" / "gdb.exe").string();
+#else
+	return (root / "gdb" / "bin" / "gdb").string();
+#endif
+}
+
 bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 {
     auto settings = GetAdapterSettings();
     BNSettingsScope scope = SettingsResourceScope;
     auto data = GetData();
-    auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
+    auto gdbPath = ResolveGdbPath(settings->Get<std::string>("gdb.path", data));
     scope = SettingsResourceScope;
     auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
     scope = SettingsResourceScope;
@@ -881,7 +900,21 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 		return false;
 	}
 
-	if (gdbPath.empty()) return false;
+	auto reportLaunchFailure = [this](const std::string& message) {
+		LogError("%s", message.c_str());
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.shortError = "Failed to start GDB";
+		event.data.errorData.error = message;
+		PostDebuggerEvent(event);
+	};
+	std::error_code pathError;
+	if (gdbPath.empty() || !std::filesystem::is_regular_file(gdbPath, pathError))
+	{
+		reportLaunchFailure("GDB executable does not exist: " + gdbPath
+			+ ". Install the bundled GDB or configure gdb.path.");
+		return false;
+	}
 
 	if (inputFile.empty()) inputFile = symbolFile;
 
@@ -894,6 +927,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 
 	if (!m_mi->Start())
 	{
+		reportLaunchFailure("Could not launch GDB executable: " + gdbPath);
 		Stop();
 		return false;
 	}
@@ -950,7 +984,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 	auto settings = GetAdapterSettings();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
-	auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
+	auto gdbPath = ResolveGdbPath(settings->Get<std::string>("gdb.path", data));
 	scope = SettingsResourceScope;
 	auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
 	scope = SettingsResourceScope;
@@ -2106,6 +2140,7 @@ void GdbMiAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("launch.executablePath", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+
 }
 
 bool GdbMiAdapterType::CanExecute(BinaryView* data)
@@ -2124,8 +2159,8 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
     settings->SetResourceId("gdb_mi_adapter_settings");
     settings->RegisterSetting("gdb.path", R"({
         "title": "Full GDB Executable Path",
-        "type": "string", "default": "/usr/bin/gdb",
-        "description": "Path to the GDB executable e.g., gdb-multiarch, arm-none-eabi-gdb.",
+		"type": "string", "default": "",
+		"description": "Path to the GDB executable. Defaults to the GDB bundled with the debugger; set this to use a different GDB build.",
         "uiSelectionAction": "file"
     })");
 	settings->RegisterSetting("common.inputFile",
