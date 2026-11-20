@@ -12,4 +12,4 @@ qt_build_commit = "30ebbf347e40b0646f5878fef292c346573a28a1"
 
 # Keep these in sync with the gdb-build submodule in Binary Ninja.
 gdb_version = "17.2"
-gdb_build_commit = "c4ef6e58de6797e57a512e2bdf95f9757a603919"
+gdb_build_commit = "88d292dc4cde6155c223214043495701de0f4b23"
