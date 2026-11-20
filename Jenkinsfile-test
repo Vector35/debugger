@@ -103,7 +103,7 @@ void copyExternalArtifacts(String os) {
             name: "GDB",
             jobName: "debugger/gdb-build",
             artifactFilter: "artifacts/gdb_${os}_*.zip",
-            submodule: "gdb-build",
+            commit: readTarget('gdb_build_commit'),
         ],
     ])
 

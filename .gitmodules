@@ -1,6 +1,3 @@
 [submodule "vendor/flatbuffers"]
 	path = vendor/flatbuffers
 	url = https://github.com/google/flatbuffers.git
-[submodule "gdb-build"]
-	path = gdb-build
-	url = https://github.com/Vector35/gdb-build.git

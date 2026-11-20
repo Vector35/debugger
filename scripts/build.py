@@ -19,8 +19,7 @@ if not ((3, 10) <= sys.version_info[:2] < (3, 15)):
     sys.exit('Debugger CI requires Python 3.10–3.14. Run the build with '
              '`uv run --locked --python 3.12 python scripts/build.py`.')
 
-from target_gdb_version import get_gdb_version
-from target_llvm_version import llvm_version, msvc_build, vs_version
+from target_llvm_version import gdb_version, llvm_version, msvc_build, vs_version
 from test_process import run_tests
 
 qt_version = "6.11.1"
@@ -190,7 +189,7 @@ try:
 except StopIteration:
     pass
 
-gdb_artifact_path = external_artifacts_path / 'artifacts' / f'gdb_{normalized_platform()}_{get_gdb_version()}.zip'
+gdb_artifact_path = external_artifacts_path / 'artifacts' / f'gdb_{normalized_platform()}_{gdb_version}.zip'
 if gdb_artifact_path.is_file():
     gdb_root = external_artifacts_path / 'GDB'
     if gdb_root.exists():

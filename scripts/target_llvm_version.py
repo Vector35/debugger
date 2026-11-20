@@ -9,3 +9,7 @@ vs_version = "2022"
 # submodule revisions whenever those are bumped.
 llvm_build_commit = "00399aeba5ae06a456dd5e32a4f5066c347af5d7"
 qt_build_commit = "30ebbf347e40b0646f5878fef292c346573a28a1"
+
+# Keep these in sync with the gdb-build submodule in Binary Ninja.
+gdb_version = "17.2"
+gdb_build_commit = "c4ef6e58de6797e57a512e2bdf95f9757a603919"
