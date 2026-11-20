@@ -153,21 +153,29 @@ if(GDB_PATH)
 	set(GDB_OUTPUTS)
 	if(APPLE AND BN_INTERNAL_BUILD)
 		get_filename_component(GDB_CONTENTS_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/../.." ABSOLUTE)
-		set(GDB_COPY_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/BundleGdbMac.cmake")
-		list(APPEND GDB_OUTPUTS "${GDB_CONTENTS_DIRECTORY}/MacOS/plugins/gdb")
+		set(GDB_PLUGIN_DIR "${GDB_CONTENTS_DIRECTORY}/MacOS/plugins")
+		set(GDB_RESOURCE_DIR "${GDB_CONTENTS_DIRECTORY}/Resources/gdb")
+		set(GDB_METADATA)
+		list(APPEND GDB_OUTPUTS "${GDB_PLUGIN_DIR}/gdb")
 		foreach(input IN LISTS GDB_INPUTS)
 			file(RELATIVE_PATH relative "${GDB_PATH}" "${input}")
 			if(relative MATCHES "^share/gdb/(.+)$")
-				list(APPEND GDB_OUTPUTS "${GDB_CONTENTS_DIRECTORY}/Resources/gdb/${CMAKE_MATCH_1}")
+				list(APPEND GDB_OUTPUTS "${GDB_RESOURCE_DIR}/${CMAKE_MATCH_1}")
 			elseif(relative STREQUAL "COPYING" OR relative STREQUAL "build-manifest.json")
-				list(APPEND GDB_OUTPUTS "${GDB_CONTENTS_DIRECTORY}/Resources/gdb/${relative}")
+				list(APPEND GDB_OUTPUTS "${GDB_RESOURCE_DIR}/${relative}")
+				list(APPEND GDB_METADATA "${input}")
 			endif()
 		endforeach()
+		set(GDB_COPY_METADATA)
+		if(GDB_METADATA)
+			set(GDB_COPY_METADATA COMMAND ${CMAKE_COMMAND} -E copy ${GDB_METADATA} "${GDB_RESOURCE_DIR}")
+		endif()
 		add_custom_command(OUTPUT ${GDB_OUTPUTS}
-			COMMAND ${CMAKE_COMMAND} "-DGDB_SOURCE=${GDB_PATH}"
-				"-DCONTENTS=${GDB_CONTENTS_DIRECTORY}" -P "${GDB_COPY_SCRIPT}"
-			COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${GDB_OUTPUTS}
-			DEPENDS ${GDB_INPUTS} "${GDB_COPY_SCRIPT}"
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${GDB_PLUGIN_DIR}" "${GDB_RESOURCE_DIR}"
+			COMMAND ${CMAKE_COMMAND} -E copy "${GDB_PATH}/bin/gdb" "${GDB_PLUGIN_DIR}/gdb"
+			COMMAND ${CMAKE_COMMAND} -E copy_directory "${GDB_PATH}/share/gdb" "${GDB_RESOURCE_DIR}"
+			${GDB_COPY_METADATA}
+			DEPENDS ${GDB_INPUTS}
 			COMMENT "Bundling macOS GDB code and resources" VERBATIM)
 	else()
 		set(GDB_BUNDLE_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb")
