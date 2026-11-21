@@ -456,6 +456,9 @@ to listen for the relevant events (e.g., target resumed, stopped, etc). The asyn
 only recommended when the synchronous version does not suit your need. The Binary Ninja debugger UI uses the
 asynchronous API.
 
+The debugger also registers tools with Binary Ninja's MCP server, so MCP clients can drive a debug session the same
+way this API does. See the [MCP Tools](mcp.md) guide.
+
 
 ## How-to Guide
 
