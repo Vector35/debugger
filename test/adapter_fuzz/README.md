@@ -9,6 +9,7 @@ that reproduces it.
 
 ```sh
 uv run --locked python -m pytest --fuzz test/adapter_fuzz_test.py          # every adapter this host can run
+uv run --locked python -m pytest --fuzz test/adapter_signal_fuzz_test.py   # a program driven by signal handlers
 ADAPTER_FUZZ_LENGTH=long uv run --locked python -m pytest --fuzz test/adapter_fuzz_test.py
 ```
 
@@ -62,7 +63,7 @@ names the variable. Workers inherit the environment, so every process sees the s
 | `ADAPTER_FUZZ_ALLOW_PARALLEL=1` | let two campaigns run at once |
 | `ADAPTER_FUZZ_LOCK` | a different lock file |
 
-`test_fuzz` carries the `fuzz` pytest marker, and `test/conftest.py` skips them, with a message
+`test_fuzz` and `test_signal_fuzz` carry the `fuzz` pytest marker, and `test/conftest.py` skips them, with a message
 that names the option, unless `--fuzz` is passed. Without it, `pytest test` runs the quick tests of the fuzzer itself
 and skips the campaigns.
 
@@ -149,6 +150,7 @@ For a check that runs after every step, use `@check` (see `machine.check_session
 one platform, subclass `AdapterMachine` in a test module, override the `before_launch` and `session_ended` hooks, add
 operations and checks, or name operations it cannot use in `excluded_operations`; an operation that the subclass
 defines under the name of one of the machine's replaces it. Pass `'module:Class'` to `campaign.assert_clean(profile_name, ...)`.
+`adapter_signal_fuzz_test.py` is an example.
 
 ## Adding an adapter
 

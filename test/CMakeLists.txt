@@ -12,6 +12,10 @@ cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 # staged binaries are not committed (see ../.gitignore).
 project(debugger-test-binaries C CXX)
 
+if (NOT WIN32)
+	find_package(Threads REQUIRED)
+endif()
+
 # An ARCH may be passed explicitly (e.g. -DARCH=arm64); otherwise default to the host architecture.
 if (NOT ARCH)
 	if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
@@ -93,8 +97,24 @@ function(add_test_binaries arch)
 		set_target_properties(perf_target_${arch} PROPERTIES OSX_ARCHITECTURES ${arch})
 	endif()
 
+	set(staged_targets shared_lib_${arch} load_shared_lib_${arch} perf_target_${arch})
+
+	# The debuggee for adapter_signal_fuzz_test.py: signal handlers that check they ran as often as they should.
+	if (NOT WIN32)
+		add_executable(signal_target_${arch} src/signal_target.c)
+		target_link_libraries(signal_target_${arch} Threads::Threads)
+		set_target_properties(signal_target_${arch} PROPERTIES
+				OUTPUT_NAME signal_target
+				RUNTIME_OUTPUT_DIRECTORY ${archdir}
+				)
+		if (APPLE)
+			set_target_properties(signal_target_${arch} PROPERTIES OSX_ARCHITECTURES ${arch})
+		endif()
+		list(APPEND staged_targets signal_target_${arch})
+	endif()
+
 	# Stage them into the (unsigned) binaries/<OS>-<arch> directory the tests / signing step read from.
-	foreach (tgt shared_lib_${arch} load_shared_lib_${arch} perf_target_${arch})
+	foreach (tgt ${staged_targets})
 		add_custom_command(TARGET ${tgt} POST_BUILD
 				COMMAND ${CMAKE_COMMAND} -E make_directory ${dest}
 				COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dest}/

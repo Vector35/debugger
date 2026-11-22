@@ -65,6 +65,7 @@ core/adapters/LLDB.framework
 /test/binaries/*/load_shared_lib.exe
 /test/binaries/*/perf_target
 /test/binaries/*/perf_target.exe
+/test/binaries/*/signal_target
 /test/binaries/*/shared_lib.dll
 test/__pycache__
 api/python/__pycache__

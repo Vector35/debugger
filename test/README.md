@@ -188,7 +188,7 @@ carry-over. GUI-specific behavior is not covered.
 
 ## Fuzz the debug adapters
 
-`test/adapter_fuzz_test.py` fuzzes every adapter the host can run: random
+`test/adapter_fuzz_test.py` and `test/adapter_signal_fuzz_test.py` fuzz every adapter the host can run: random
 sequences of session, breakpoint, thread, register, memory, setup and fault operations on up to three sessions at
 once, with failures, crashes and hangs reported (each with the shortest sequence that reproduces it) instead of
 stopping the run. They need minutes and many processes, so they are not part of the default build, and they are
