@@ -186,6 +186,23 @@ unwind limitation. Conditional breakpoints are tested for get/set only, and the
 restart test explicitly re-adds its breakpoint rather than testing automatic
 carry-over. GUI-specific behavior is not covered.
 
+## Fuzz the debug adapters
+
+`test/adapter_fuzz_test.py` fuzzes every adapter the host can run: random
+sequences of session, breakpoint, thread, register, memory, setup and fault operations on up to three sessions at
+once, with failures, crashes and hangs reported (each with the shortest sequence that reproduces it) instead of
+stopping the run. They need minutes and many processes, so they are not part of the default build, and they are
+skipped unless `--fuzz` is passed.
+
+```sh
+uv run --locked python -m pytest --fuzz test/adapter_fuzz_test.py
+ADAPTER_FUZZ_LENGTH=long uv run --locked python -m pytest --fuzz test/adapter_fuzz_test.py
+```
+
+`test/adapter_fuzz_harness_test.py`, `test/adapter_fuzz_session_test.py` and `test/adapter_fuzz_engine_test.py` test the
+fuzzer itself and run in seconds. `test/adapter_fuzz/README.md` explains how to read a report, the settings, and how to add an operation or an
+adapter.
+
 ## Building test binaries alongside the debugger
 
 Some test binaries are built alongside the debugger, so that adding a new test does not require a
