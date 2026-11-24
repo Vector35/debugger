@@ -903,8 +903,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
     m_mi->SendCommand("-gdb-set confirm off");
     m_mi->SendCommand("-enable-frame-filters");
     if (!symbolFile.empty())
-        m_mi->SendCommand("-interpreter-exec console "
-            + QuoteMiString("add-symbol-file " + QuoteConsoleArgument(symbolFile)));
+        m_mi->SendCommand("-file-symbol-file " + QuoteMiString(symbolFile));
 
     m_mi->SendCommand("-file-exec-file " + QuoteMiString(inputFile));
 	// TODO: we should offer an option on whether or not to connect in extended mode
