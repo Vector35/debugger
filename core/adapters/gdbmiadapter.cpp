@@ -1349,8 +1349,8 @@ bool GdbMiAdapter::SetActiveThread(const DebugThread& thread) { return SetActive
 DebugBreakpoint GdbMiAdapter::AddBreakpoint(std::uintptr_t address, unsigned long breakpoint_type) {
     if (!m_mi) { return {}; }
 
-    LogDebug("-break-insert -h *0x%" PRIx64, (uint64_t)address);
-    auto result = m_mi->SendCommand(fmt::format("-break-insert -h *0x{:x}", address));
+    LogDebug("-break-insert *0x%" PRIx64, (uint64_t)address);
+    auto result = m_mi->SendCommand(fmt::format("-break-insert *0x{:x}", address));
     if (result.command == "done") {
         DebuggerEvent evt;
 		evt.type = BackendMessageEventType;
