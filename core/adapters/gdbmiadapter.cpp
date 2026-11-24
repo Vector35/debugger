@@ -2187,7 +2187,7 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
 			})");
 	settings->RegisterSetting("connect.timeout",
 			R"({
-				"title" : "Connection Timeout (ms)",
+				"title" : "Connection Timeout in Milliseconds",
 				"type" : "number",
 				"default" : 30000,
 				"minValue" : 1,
