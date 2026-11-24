@@ -875,6 +875,8 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 	auto ipAddress = settings->Get<std::string>("connect.ipAddress", data, &scope);
 	scope = SettingsResourceScope;
 	auto serverPort = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
+	scope = SettingsResourceScope;
+	auto timeoutMs = static_cast<int>(settings->Get<uint64_t>("connect.timeout", data, &scope));
 	if (ipAddress.empty() || serverPort == 0)
 	{
 		LogError("Missing connection settings for restart.");
@@ -909,7 +911,8 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
 	// TODO: we should offer an option on whether or not to connect in extended mode
     std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
 
-    auto result = m_mi->SendCommand(connectCmd, 1000);
+    // Remote initialization can download loader and shared-library symbols.
+    auto result = m_mi->SendCommand(connectCmd, timeoutMs);
 	m_connected = (result.command == "connected");
 	if (!m_connected)
 	{
@@ -2181,6 +2184,15 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
 			"maxValue" : 65535,
 			"description" : "Port of the debug stub to connect to",
 			"readOnly" : false
+			})");
+	settings->RegisterSetting("connect.timeout",
+			R"({
+				"title" : "Connection Timeout (ms)",
+				"type" : "number",
+				"default" : 30000,
+				"minValue" : 1,
+				"maxValue" : 2147483647,
+				"description" : "Time in milliseconds to wait for GDB to connect to the remote target and finish initializing it."
 			})");
     settings->RegisterSetting("gdb.symbolFile", R"({
         "title": "Symbol File, optional",
