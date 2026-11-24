@@ -25,6 +25,7 @@ limitations under the License.
 #include <algorithm>
 #include "ui.h"
 #include "memorymapwidget.h"
+#include "debuggeruicommon.h"
 #include "clickablelabel.h"
 
 using namespace BinaryNinja;
@@ -705,16 +706,10 @@ void DebugMemoryMapWidget::onDoubleClicked()
 	else
 		address = region.endAddress();
 
-	UIContext* context = UIContext::contextForWidget(this);
-	if (!context)
-		return;
-
-	ViewFrame* frame = context->getCurrentViewFrame();
-	if (!frame)
-		return;
-
+	// Navigate to the target, opening it in the other pane when it is a different kind
+	// of thing (code vs data) than the current pane shows (see NavigateToAddress, #1134).
 	if (m_controller->GetData())
-		frame->navigate(m_controller->GetData(), address, true, true);
+		NavigateToAddress(this, m_controller->GetData(), address);
 };
 
 
